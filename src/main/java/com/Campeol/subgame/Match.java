@@ -12,7 +12,7 @@ public class Match {
   }
 
   public void startPlayer(char XorO) {
-    if (XorO != 'O' || XorO != 'X') {
+    if (XorO != 'O' && XorO != 'X') {
       throw new subGameException("Invalid piece choice");
     }
     if (XorO == 'X') {
@@ -22,6 +22,19 @@ public class Match {
       p1 = new Player(new Piece(XorO));
       p2 = new Player(new Piece('X'));
     }
+  }
+
+  // temporary
+  public Player getP1() {
+    return p1;
+  }
+
+  public Player getP2() {
+    return p2;
+  }
+
+  public Board getBoard() {
+    return board;
   }
 
 }

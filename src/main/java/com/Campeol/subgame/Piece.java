@@ -21,4 +21,13 @@ public class Piece {
   public void setChar(char XorO) {
     this.XorO = XorO;
   }
+
+  public String toString() {
+    if (XorO == 'O') {
+      return "O";
+    } else {
+      return "X";
+    }
+
+  }
 }
