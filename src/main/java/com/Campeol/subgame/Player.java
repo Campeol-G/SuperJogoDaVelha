@@ -4,8 +4,9 @@ public class Player {
 
   private Piece piece;
 
-  public Player(Piece piece) {
+  public Player(Piece piece, char XorO) {
     this.piece = piece;
+    piece.setChar(XorO);
   }
 
   public Piece getPiece() {

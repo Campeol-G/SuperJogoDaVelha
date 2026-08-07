@@ -13,8 +13,12 @@ public class Piece {
     return XorO;
   }
 
-  public Piece(char xorO, Position position) {
+  public Piece(char xorO) {
     XorO = xorO;
     this.position = null;
+  }
+
+  public void setChar(char XorO) {
+    this.XorO = XorO;
   }
 }
