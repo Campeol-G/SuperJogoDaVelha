@@ -65,8 +65,26 @@ public class Board {
         && position.getColumn() < column;
   }
 
-  // public Position boardPosition(char rowChar, Integer columnInt) {
-  // return new Position(rowChar - 'a', columnInt);
-  // }
+  private boolean samePiece(int r1, int c1, int r2, int c2, int r3, int c3) {
+    Piece a = boardPlace[r1][c1];
+    Piece b = boardPlace[r2][c2];
+    Piece c = boardPlace[r3][c3];
+    return a != null && a == b && b == c;
+  }
 
+  public boolean checkDiagnoal() {
+    return samePiece(0, 0, 1, 1, 2, 2) || samePiece(2, 0, 1, 1, 0, 2);
+  }
+
+  public boolean checkRows() {
+    return samePiece(0, 0, 0, 1, 0, 2)
+        || samePiece(1, 0, 1, 1, 1, 2)
+        || samePiece(2, 0, 2, 1, 2, 2);
+  }
+
+  public boolean checkColumns() {
+    return samePiece(0, 0, 1, 0, 2, 0)
+        || samePiece(0, 1, 1, 1, 2, 1)
+        || samePiece(0, 2, 1, 2, 2, 2);
+  }
 }

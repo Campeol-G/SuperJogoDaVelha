@@ -6,3 +6,4 @@ com/Campeol/subgame/exception/subGameException.class
 com/Campeol/App.class
 com/Campeol/subgame/Player.class
 com/Campeol/subgame/Piece.class
+com/Campeol/MatchStatus.class

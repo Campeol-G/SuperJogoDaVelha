@@ -1,5 +1,6 @@
 package com.Campeol.subgame;
 
+import com.Campeol.MatchStatus;
 import com.Campeol.subgame.exception.subGameException;
 import com.googlecode.lanterna.graphics.TextGraphics;
 
@@ -8,10 +9,12 @@ public class Match {
   private Board board;
   private Player p1, p2, currentPlayer;
   private Integer turn;
+  private MatchStatus status;
 
   public Match() {
     board = new Board(3, 3);
     turn = 1;
+    status = MatchStatus.IN_PROGRESS;
   }
 
   public void startPlayer(char XorO) {
@@ -43,6 +46,12 @@ public class Match {
     } else {
       board.placePiece(p2, position);
     }
+    if (turn == 9) {
+      status = MatchStatus.DRAW;
+    }
+    if (board.checkColumns() || board.checkRows() || board.checkDiagnoal()) {
+      status = MatchStatus.VICTORY;
+    }
     changeTurn();
   }
 
@@ -51,6 +60,13 @@ public class Match {
     board.render(txt);
   }
 
+  public void endGame(TextGraphics txt) {
+    txt.putString(2, 2, status.toString());
+  }
+
+  public MatchStatus getMatchStatus() {
+    return status;
+  }
   // temporary===============
   // =========================
 
