@@ -1,6 +1,7 @@
 package com.Campeol.subgame;
 
 import com.Campeol.subgame.exception.subGameException;
+import com.googlecode.lanterna.graphics.TextGraphics;
 
 public class Match {
 
@@ -38,29 +39,19 @@ public class Match {
 
   public void makeMove(Position position) {
     if (turn % 2 != 0) {
-      getBoard().placePiece(p1, position);
+      board.placePiece(p1, position);
     } else {
-      getBoard().placePiece(p2, position);
+      board.placePiece(p2, position);
     }
     changeTurn();
   }
 
+  public void render(TextGraphics txt) {
+    txt.putString(0, 0, "Vez de " + (turn % 2 != 0 ? p1 : p2).getPiece());
+    board.render(txt);
+  }
+
   // temporary===============
-  public Player getP1() {
-    return p1;
-  }
-
-  public Player getP2() {
-    return p2;
-  }
-
-  public Board getBoard() {
-    return board;
-  }
-
-  public Player getCurrentPlayer() {
-    return currentPlayer;
-  }
   // =========================
 
 }

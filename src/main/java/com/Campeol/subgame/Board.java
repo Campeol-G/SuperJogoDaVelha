@@ -1,6 +1,7 @@
 package com.Campeol.subgame;
 
 import com.Campeol.subgame.exception.subGameException;
+import com.googlecode.lanterna.graphics.TextGraphics;
 
 public class Board {
 
@@ -22,8 +23,20 @@ public class Board {
     return column;
   }
 
-  public Piece[][] getBoardPlace() {
-    return boardPlace;
+  // TODO
+  // precisa ser alterado por conta do terminalPosition para poder ser usado com o
+  // 3x3 de subgame;
+  public void render(TextGraphics txt) {
+    for (int i = 0; i < row; i++) {
+      for (int j = 0; j < column; j++) {
+        String sep = (j < column - 1) ? "|" : " ";
+        Piece piece = boardPlace[i][j];
+        String content = piece != null ? piece.toString() : " ";
+        txt.putString(j * 4, i * 2, " " + content + " " + sep);
+      }
+      String sep = (i < row - 1) ? "---" + "+---".repeat(column - 1) : "";
+      txt.putString(0, i * 2 + 1, sep);
+    }
   }
 
   public Piece getPiece(Position position) {
@@ -51,5 +64,9 @@ public class Board {
     return position.getRow() >= 0 && position.getRow() < row && position.getColumn() >= 0
         && position.getColumn() < column;
   }
+
+  // public Position boardPosition(char rowChar, Integer columnInt) {
+  // return new Position(rowChar - 'a', columnInt);
+  // }
 
 }
