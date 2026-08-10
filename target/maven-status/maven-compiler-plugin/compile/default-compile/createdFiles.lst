@@ -1,7 +1,7 @@
 com/Campeol/subgame/Board.class
 com/Campeol/subgame/Position.class
+com/Campeol/game/GameUI$1.class
 com/Campeol/subgame/Match.class
-com/Campeol/subgame/subUI.class
 com/Campeol/subgame/exception/subGameException.class
 com/Campeol/App.class
 com/Campeol/subgame/Player.class

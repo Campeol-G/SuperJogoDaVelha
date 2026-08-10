@@ -28,10 +28,10 @@ public class Match {
       p1 = new Player(new Piece(XorO));
       p2 = new Player(new Piece('X'));
     }
+    currentPlayer = p1;
   }
 
   private void changeTurn() {
-    currentPlayer = null;
     if (turn % 2 != 0) {
       currentPlayer = p1;
     } else {
@@ -56,18 +56,32 @@ public class Match {
   }
 
   public void render(TextGraphics txt) {
-    txt.putString(0, 0, "Vez de " + (turn % 2 != 0 ? p1 : p2).getPiece());
     board.render(txt);
   }
 
   public void endGame(TextGraphics txt) {
     txt.putString(2, 2, status.toString());
+    if (status != MatchStatus.DRAW) {
+      txt.putString(2, 3, "BY:" + currentPlayer.getPiece());
+    }
   }
 
   public MatchStatus getMatchStatus() {
     return status;
   }
+
   // temporary===============
+  public int getTurn() {
+    return turn;
+  }
+
+  public Player getCurrentPlayer() {
+    return currentPlayer;
+  }
+
+  public void setMatchStatus(MatchStatus status) {
+    this.status = status;
+  }
   // =========================
 
 }

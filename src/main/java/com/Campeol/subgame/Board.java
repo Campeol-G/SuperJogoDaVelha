@@ -73,7 +73,8 @@ public class Board {
   }
 
   public boolean checkDiagnoal() {
-    return samePiece(0, 0, 1, 1, 2, 2) || samePiece(2, 0, 1, 1, 0, 2);
+    return samePiece(0, 0, 1, 1, 2, 2)
+        || samePiece(2, 0, 1, 1, 0, 2);
   }
 
   public boolean checkRows() {

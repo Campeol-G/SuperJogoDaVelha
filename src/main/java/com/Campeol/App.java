@@ -1,26 +1,34 @@
 package com.Campeol;
 
-import java.util.Scanner;
-import com.Campeol.MatchStatus;
+import java.io.IOException;
+
+import com.Campeol.game.GameUI;
 import com.Campeol.subgame.Match;
 import com.Campeol.subgame.Position;
-import com.Campeol.subgame.subUI;
+import com.Campeol.subgame.exception.subGameException;
 
 public class App {
   public static void main(String[] args) {
     // just test
-    Scanner sc = new Scanner(System.in);
     Match match = new Match();
-
     match.startPlayer('X');
-    while (match.getMatchStatus() == MatchStatus.IN_PROGRESS) {
-      CharSequence test = sc.nextLine();
-      int row = test.charAt(0) - '0';
-      int column = test.charAt(1) - '0';
-      match.makeMove(new Position(row, column));
-      subUI.printBoard(match);
-    }
+    try (GameUI ui = new GameUI(match)) {
+      while (match.getMatchStatus() == MatchStatus.IN_PROGRESS) {
+        ui.render();
+        try {
+          Position pos = ui.readPosition();
+          if (match.getMatchStatus() != MatchStatus.INTERRUPTED) {
+            match.makeMove(pos);
 
-    subUI.endGame(match);
+          }
+        } catch (subGameException e) {
+          ui.showErro(e.getMessage());
+        }
+      }
+      ui.endGame();
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
   }
+
 }
