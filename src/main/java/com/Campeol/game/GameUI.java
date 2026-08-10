@@ -30,7 +30,23 @@ public class GameUI implements AutoCloseable {
 
   public void render() throws IOException {
     match.render(txt);
+
     screen.refresh();
+  }
+
+  public char startGame() throws IOException {
+    screen.clear();
+    char kp;
+    do {
+      txt.putString(0, 0, "Chose a piece to play[X/O]: ");
+      screen.setCursorPosition(new TerminalPosition(0, 1));
+      screen.refresh();
+      KeyStroke keyPressed = screen.readInput();
+      Character c = keyPressed.getCharacter();
+      kp = c == null ? ' ' : Character.toUpperCase(c);
+    } while (kp != 'X' && kp != 'O');
+    return kp;
+
   }
 
   public Position readPosition() throws IOException {

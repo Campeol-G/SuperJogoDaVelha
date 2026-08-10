@@ -11,8 +11,8 @@ public class App {
   public static void main(String[] args) {
     // just test
     Match match = new Match();
-    match.startPlayer('X');
     try (GameUI ui = new GameUI(match)) {
+      match.startPlayer(ui.startGame());
       while (match.getMatchStatus() == MatchStatus.IN_PROGRESS) {
         ui.render();
         try {

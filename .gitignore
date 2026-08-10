@@ -1,4 +1,15 @@
-.settings
+# Eclipse
+.settings/
 .classpath
 .project
-.class
+*.prefs
+
+# Maven build output
+target/
+
+# Compiled class files
+*.class
+
+# OS files
+.DS_Store
+Thumbs.db
