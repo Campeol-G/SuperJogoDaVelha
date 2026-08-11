@@ -10,11 +10,15 @@ public class Match {
   private Player p1, p2, currentPlayer;
   private Integer turn;
   private MatchStatus status;
+  private int rowPosition;
+  private int columnPosition;
 
-  public Match() {
+  public Match(int row, int column) {
     board = new Board(3, 3);
     turn = 1;
     status = MatchStatus.IN_PROGRESS;
+    this.rowPosition = row;
+    this.columnPosition = column;
   }
 
   public void startPlayer(char XorO) {
@@ -56,7 +60,7 @@ public class Match {
   }
 
   public void render(TextGraphics txt) {
-    board.render(txt);
+    board.render(txt, rowPosition, columnPosition);
   }
 
   public void endGame(TextGraphics txt) {

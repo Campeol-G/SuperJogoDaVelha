@@ -20,6 +20,7 @@ public class GameUI implements AutoCloseable {
   private Screen screen;
   private Match match;
   private TextGraphics txt;
+  private GameBoard gmb = new GameBoard();
 
   public GameUI(Match match) throws IOException {
     this.match = match;
@@ -29,8 +30,7 @@ public class GameUI implements AutoCloseable {
   }
 
   public void render() throws IOException {
-    match.render(txt);
-
+    gmb.renderAllGames(txt);
     screen.refresh();
   }
 
@@ -49,7 +49,7 @@ public class GameUI implements AutoCloseable {
 
   }
 
-  public Position readPosition() throws IOException {
+  public Position readInput() throws IOException {
     int row = 0;
     int column = 0;
     Position pos = new Position(row, column);
@@ -113,6 +113,7 @@ public class GameUI implements AutoCloseable {
     return pos;
   }
 
+  // TODO permitir o usuario poder skipar a msg de erro;
   public void showErro(String msg) throws IOException {
     screen.clear();
     txt.putString(4, 4, msg);

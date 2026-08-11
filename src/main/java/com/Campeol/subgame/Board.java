@@ -26,16 +26,16 @@ public class Board {
   // TODO
   // precisa ser alterado por conta do terminalPosition para poder ser usado com o
   // 3x3 de subgame;
-  public void render(TextGraphics txt) {
+  public void render(TextGraphics txt, int offsetRow, int offsetColumn) {
     for (int i = 0; i < row; i++) {
       for (int j = 0; j < column; j++) {
         String sep = (j < column - 1) ? "|" : " ";
         Piece piece = boardPlace[i][j];
         String content = piece != null ? piece.toString() : " ";
-        txt.putString(j * 4, i * 2, " " + content + " " + sep);
+        txt.putString(j * 4 + offsetColumn, i * 2 + offsetRow, " " + content + " " + sep);
       }
       String sep = (i < row - 1) ? "---" + "+---".repeat(column - 1) : "";
-      txt.putString(0, i * 2 + 1, sep);
+      txt.putString(0 + offsetColumn, i * 2 + 1 + offsetRow, sep);
     }
   }
 
