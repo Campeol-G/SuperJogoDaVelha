@@ -7,7 +7,7 @@ import com.googlecode.lanterna.graphics.TextGraphics;
 public class Match {
 
   private Board board;
-  private Player p1, p2, currentPlayer;
+  private Player p1, p2, currentPlayer, winner;
   private Integer turn;
   private MatchStatus status;
   private int rowPosition;
@@ -64,9 +64,15 @@ public class Match {
   }
 
   public void endGame(TextGraphics txt) {
-    txt.putString(2, 2, status.toString());
-    if (status != MatchStatus.DRAW) {
-      txt.putString(2, 3, "BY:" + currentPlayer.getPiece());
+    if (status == MatchStatus.INTERRUPTED) {
+      txt.putString(16, 7, status.toString());
+      txt.putString(16, 7 + 1, "BY:" + currentPlayer.getPiece());
+    } else {
+      txt.putString(columnPosition, rowPosition, status.toString());
+      if (status != MatchStatus.DRAW) {
+        winner = currentPlayer;
+        txt.putString(columnPosition, rowPosition + 1, "BY:" + currentPlayer.getPiece());
+      }
     }
   }
 
@@ -86,6 +92,15 @@ public class Match {
   public void setMatchStatus(MatchStatus status) {
     this.status = status;
   }
+
+  public int getIntRowPosition() {
+    return rowPosition;
+  }
+
+  public int getIntColumnPosition() {
+    return columnPosition;
+  }
+
   // =========================
 
 }

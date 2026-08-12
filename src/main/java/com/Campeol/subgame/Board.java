@@ -23,9 +23,6 @@ public class Board {
     return column;
   }
 
-  // TODO
-  // precisa ser alterado por conta do terminalPosition para poder ser usado com o
-  // 3x3 de subgame;
   public void render(TextGraphics txt, int offsetRow, int offsetColumn) {
     for (int i = 0; i < row; i++) {
       for (int j = 0; j < column; j++) {
