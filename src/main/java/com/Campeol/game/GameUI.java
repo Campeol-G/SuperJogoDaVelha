@@ -20,7 +20,7 @@ public class GameUI implements AutoCloseable {
   private Screen screen;
   private Match match;
   private TextGraphics txt;
-  private GameBoard gmb = new GameBoard();
+  GameBoard gb = new GameBoard();
 
   public GameUI(Match match) throws IOException {
     this.match = match;
@@ -30,7 +30,7 @@ public class GameUI implements AutoCloseable {
   }
 
   public void render() throws IOException {
-    gmb.renderAllGames(txt);
+    gb.renderAllGames(txt);
     screen.refresh();
   }
 
