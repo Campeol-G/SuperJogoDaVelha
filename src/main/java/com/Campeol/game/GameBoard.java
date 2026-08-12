@@ -20,7 +20,7 @@ public class GameBoard {
     }
   }
 
-  // TODO refector the hardcoded position;
+  // TODO refector this hardcoded position;
   public void divisors(TextGraphics txt) {
     // columns
     for (int i = 0; i < 19; i++) {
@@ -75,6 +75,9 @@ public class GameBoard {
       }
     }
     divisors(txt);
+  }
 
+  public Match getMatch(int i, int j) {
+    return gamePlaces[i][j];
   }
 }
