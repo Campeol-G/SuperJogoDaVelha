@@ -50,6 +50,17 @@ public class Board {
     boardPlace[position.getRow()][position.getColumn()] = player.getPiece();
   }
 
+  public boolean isFull() {
+    for (int i = 0; i < row; i++) {
+      for (int j = 0; j < column; j++) {
+        if (boardPlace[i][j] == null) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   public boolean thereIsAPiece(Position position) {
     if (!positionExist(position)) {
       throw new subGameException("this is not a possible position");

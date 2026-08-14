@@ -12,15 +12,15 @@ public class App {
   public static void main(String[] args) {
     // just test
     try (GameUI ui = new GameUI()) {
-      Match match = ui.getMatch(1, 1);
-      match.startPlayer(ui.startGame());
+      ui.startPlayer(ui.startGame());
+      Match match = ui.firstMove();
       while (match.getMatchStatus() == MatchStatus.IN_PROGRESS) {
         ui.render();
         try {
           Position pos = ui.readInput(match);
           if (match.getMatchStatus() != MatchStatus.INTERRUPTED) {
-            match.makeMove(pos);
-
+            ui.makeMove(match, pos);
+            match = ui.changeMatch(pos);
           }
         } catch (subGameException e) {
           try {

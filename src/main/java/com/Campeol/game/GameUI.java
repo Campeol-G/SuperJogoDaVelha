@@ -20,12 +20,13 @@ public class GameUI implements AutoCloseable {
   private Screen screen;
   private Terminal terminal;
   private TextGraphics txt;
-  GameBoard gb = new GameBoard();
+  GameBoard gb;
 
   public GameUI() throws IOException {
     this.terminal = new DefaultTerminalFactory().createTerminal();
     this.screen = new TerminalScreen(terminal);
     this.txt = screen.newTextGraphics();
+    gb = new GameBoard();
     screen.startScreen();
   }
 
@@ -135,7 +136,7 @@ public class GameUI implements AutoCloseable {
 
   public void endGame(Match match) throws IOException, InterruptedException {
     screen.clear();
-    match.endGame(txt);
+    match.endGame(txt, gb.getCurrentPlayer());
     screen.refresh();
     long endTime = System.currentTimeMillis() + 2000;
     KeyStroke key = null;
@@ -148,11 +149,91 @@ public class GameUI implements AutoCloseable {
     }
   }
 
-  public Match getMatch(int i, int j) {
-    return gb.getMatch(i, j);
-  }
-
   public void close() throws IOException {
     screen.stopScreen();
+  }
+
+  public Match getMatch(int i, int j) {
+    return gb.getGamePlaces(i, j);
+  }
+
+  public void startPlayer(char XorO) {
+    gb.startPlayer(XorO);
+  }
+
+  public void makeMove(Match match, Position position) {
+    gb.makeMove(match, position);
+  }
+
+  public Match firstMove() throws IOException {
+    int row = 1;
+    int column = 1;
+    Match match = gb.getGamePlaces(row, column);
+    screen.clear();
+    render();
+    KeyStroke keyPressed = null;
+    screen.setCursorPosition(new TerminalPosition(21,
+        9));
+    screen.refresh();
+    while (keyPressed == null || keyPressed.getKeyType() != KeyType.Enter
+        && keyPressed.getKeyType() != KeyType.Escape) {
+      keyPressed = screen.readInput();
+      switch (keyPressed.getKeyType()) {
+        case ArrowRight:
+          column++;
+          if (column > 2) {
+            column--;
+          }
+          screen.setCursorPosition(new TerminalPosition(column * 14 + 7,
+              row * 6 + 3));
+          match = gb.getGamePlaces(row, column);
+          screen.refresh();
+          break;
+        case ArrowLeft:
+          column--;
+          if (column < 0) {
+            column++;
+          }
+          screen.setCursorPosition(new TerminalPosition(column * 14 + 7,
+              row * 6 + 3));
+          match = gb.getGamePlaces(row, column);
+          screen.refresh();
+          break;
+        case ArrowUp:
+          row--;
+          if (row < 0) {
+            row++;
+          }
+          screen.setCursorPosition(new TerminalPosition(column * 14 + 7,
+              row * 6 + 3));
+          match = gb.getGamePlaces(row, column);
+          screen.refresh();
+          break;
+        case ArrowDown:
+          row++;
+          if (row > 2) {
+            row--;
+          }
+          screen.setCursorPosition(new TerminalPosition(column * 14 + 7,
+              row * 6 + 3));
+          match = gb.getGamePlaces(row, column);
+          screen.refresh();
+          break;
+        case Escape:
+          screen.clear();
+          match.setMatchStatus(MatchStatus.INTERRUPTED);
+          break;
+        default:
+          if (keyPressed != null
+              && (keyPressed.getKeyType() != KeyType.Enter && keyPressed.getKeyType() != KeyType.Escape)) {
+            throw new subGameException("Invalid input!");
+          }
+      }
+    }
+    return match;
+  }
+
+  public Match changeMatch(Position pos) {
+    return gb.getGamePlaces(pos.getRow(), pos.getColumn());
   }
 }

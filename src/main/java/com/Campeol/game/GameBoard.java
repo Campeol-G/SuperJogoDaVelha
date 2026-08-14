@@ -1,13 +1,47 @@
 package com.Campeol.game;
 
 import com.Campeol.subgame.Match;
+import com.Campeol.subgame.Piece;
+import com.Campeol.subgame.Player;
+import com.Campeol.subgame.Position;
+import com.Campeol.subgame.exception.subGameException;
 import com.googlecode.lanterna.graphics.TextGraphics;
 
 public class GameBoard {
-  Match[][] gamePlaces;
+  private Match[][] gamePlaces;
+  private Player p1, p2, currentPlayer;
+  private Integer turn;
 
   public GameBoard() {
     startAllGames();
+  }
+
+  public void startPlayer(char XorO) {
+    if (XorO != 'O' && XorO != 'X') {
+      throw new subGameException("Invalid piece choice");
+    }
+    p1 = new Player(new Piece(XorO));
+    p2 = new Player(new Piece(XorO == 'X' ? 'O' : 'X'));
+    currentPlayer = p1;
+    turn = 1;
+  }
+
+  public void makeMove(Match match, Position position) {
+    match.makeMove(currentPlayer, position);
+    changeTurn();
+  }
+
+  private void changeTurn() {
+    currentPlayer = currentPlayer == p1 ? p2 : p1;
+    turn++;
+  }
+
+  public Player getCurrentPlayer() {
+    return currentPlayer;
+  }
+
+  public Integer getTurn() {
+    return turn;
   }
 
   public void startAllGames() {
@@ -77,7 +111,7 @@ public class GameBoard {
     divisors(txt);
   }
 
-  public Match getMatch(int i, int j) {
+  public Match getGamePlaces(int i, int j) {
     return gamePlaces[i][j];
   }
 }
