@@ -1,6 +1,7 @@
 package com.Campeol.subgame;
 
 import com.Campeol.subgame.exception.subGameException;
+import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.graphics.TextGraphics;
 
 public class Board {
@@ -23,15 +24,28 @@ public class Board {
     return column;
   }
 
-  public void render(TextGraphics txt, int offsetRow, int offsetColumn) {
+  public void render(TextGraphics txt, int offsetRow, int offsetColumn, TextColor highlight) {
+    txt.setBackgroundColor(highlight);
     for (int i = 0; i < row; i++) {
       for (int j = 0; j < column; j++) {
-        String sep = (j < column - 1) ? "|" : " ";
+        String sep = (j < column - 1) ? "|" : "";
         Piece piece = boardPlace[i][j];
         String content = piece != null ? piece.toString() : " ";
         txt.putString(j * 4 + offsetColumn, i * 2 + offsetRow, " " + content + " " + sep);
       }
       String sep = (i < row - 1) ? "---" + "+---".repeat(column - 1) : "";
+      txt.putString(0 + offsetColumn, i * 2 + 1 + offsetRow, sep);
+    }
+    txt.setBackgroundColor(null);
+  }
+
+  public void clearBoard(TextGraphics txt, int offsetRow, int offsetColumn) {
+    txt.setBackgroundColor(null);
+    for (int i = 0; i < row; i++) {
+      for (int j = 0; j < column; j++) {
+        txt.putString(j * 4 + offsetColumn, i * 2 + offsetRow, "    ");
+      }
+      String sep = (i < row - 1) ? "   " + "    ".repeat(column - 1) : "";
       txt.putString(0 + offsetColumn, i * 2 + 1 + offsetRow, sep);
     }
   }
@@ -95,5 +109,13 @@ public class Board {
     return samePiece(0, 0, 1, 0, 2, 0)
         || samePiece(0, 1, 1, 1, 2, 1)
         || samePiece(0, 2, 1, 2, 2, 2);
+  }
+
+  public boolean testEndGame() {
+    if (checkColumns() || checkRows() || checkDiagnoal()) {
+      return true;
+    } else {
+      return false;
+    }
   }
 }

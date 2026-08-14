@@ -1,5 +1,6 @@
 package com.Campeol.game;
 
+import com.Campeol.MatchStatus;
 import com.Campeol.subgame.Match;
 import com.Campeol.subgame.Piece;
 import com.Campeol.subgame.Player;
@@ -11,9 +12,12 @@ public class GameBoard {
   private Match[][] gamePlaces;
   private Player p1, p2, currentPlayer;
   private Integer turn;
+  private MatchStatus status;
+  private boolean matchFinished;
 
   public GameBoard() {
     startAllGames();
+    status = MatchStatus.IN_PROGRESS;
   }
 
   public void startPlayer(char XorO) {
@@ -27,8 +31,16 @@ public class GameBoard {
   }
 
   public void makeMove(Match match, Position position) {
+    matchFinished = false;
     match.makeMove(currentPlayer, position);
+    if (match.getMatchStatus() == MatchStatus.VICTORY || match.getMatchStatus() == MatchStatus.DRAW) {
+      matchFinished = true;
+    }
     changeTurn();
+  }
+
+  public boolean getMatchFinished() {
+    return matchFinished;
   }
 
   private void changeTurn() {
@@ -42,6 +54,10 @@ public class GameBoard {
 
   public Integer getTurn() {
     return turn;
+  }
+
+  public MatchStatus getStatus() {
+    return status;
   }
 
   public void startAllGames() {
@@ -105,7 +121,7 @@ public class GameBoard {
   public void renderAllGames(TextGraphics txt) {
     for (int i = 0; i < gamePlaces.length; i++) {
       for (int j = 0; j < gamePlaces.length; j++) {
-        gamePlaces[i][j].render(txt);
+        gamePlaces[i][j].render(txt, currentPlayer, null);
       }
     }
     divisors(txt);

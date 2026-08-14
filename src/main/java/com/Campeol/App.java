@@ -1,9 +1,9 @@
 package com.Campeol;
 
 import java.io.IOException;
-import java.lang.InterruptedException;
 
 import com.Campeol.game.GameUI;
+import com.Campeol.game.exception.GameException;
 import com.Campeol.subgame.Match;
 import com.Campeol.subgame.Position;
 import com.Campeol.subgame.exception.subGameException;
@@ -13,8 +13,8 @@ public class App {
     // just test
     try (GameUI ui = new GameUI()) {
       ui.startPlayer(ui.startGame());
-      Match match = ui.firstMove();
-      while (match.getMatchStatus() == MatchStatus.IN_PROGRESS) {
+      Match match = ui.bigMove();
+      while (ui.getStatus() == MatchStatus.IN_PROGRESS) {
         ui.render();
         try {
           Position pos = ui.readInput(match);
@@ -28,16 +28,19 @@ public class App {
           } catch (InterruptedException x) {
             x.printStackTrace();
           }
+        } catch (GameException y) {
+          try {
+            ui.showErro(y.getMessage());
+          } catch (InterruptedException x) {
+            x.printStackTrace();
+          }
         }
-      }
-      try {
-        ui.endGame(match);
-      } catch (InterruptedException x) {
-        x.printStackTrace();
-      }
 
+      }
     } catch (IOException e) {
       e.printStackTrace();
+    } catch (InterruptedException y) {
+      y.printStackTrace();
     }
   }
 
