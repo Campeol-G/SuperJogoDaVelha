@@ -63,4 +63,8 @@ public class Match {
     return columnPosition;
   }
 
+  public Player getWinner() {
+    return winner;
+  }
+
 }

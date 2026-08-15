@@ -50,13 +50,6 @@ public class Board {
     }
   }
 
-  public Piece getPiece(Position position) {
-    if (thereIsAPiece(position)) {
-      throw new subGameException("There's already a piece there");
-    }
-    return boardPlace[position.getRow()][position.getColumn()];
-  }
-
   public void placePiece(Player player, Position position) {
     if (thereIsAPiece(position)) {
       throw new subGameException("There's already a piece there");

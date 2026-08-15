@@ -114,6 +114,7 @@ public class GameUI implements AutoCloseable {
           break;
         case Escape:
           screen.clear();
+          gb.setGameStatus(MatchStatus.INTERRUPTED);
           endGame();
           break;
         default:
@@ -135,6 +136,17 @@ public class GameUI implements AutoCloseable {
       }
       if (keyPressed != null && keyPressed.getKeyType() == KeyType.Enter) {
         if (match.getMatchStatus() != MatchStatus.IN_PROGRESS) {
+          txt.putString(2, 19, "You can't chose a already finished game");
+          screen.refresh();
+          long endTime = System.currentTimeMillis() + 2000;
+          while (System.currentTimeMillis() < endTime) {
+            if (screen.pollInput() != null) {
+              break;
+            }
+            Thread.sleep(50);
+          }
+          txt.putString(2, 19, "                                       ");
+          screen.refresh();
           keyPressed = null;
         }
       }
@@ -212,6 +224,7 @@ public class GameUI implements AutoCloseable {
           break;
         case Escape:
           screen.clear();
+          gb.setGameStatus(MatchStatus.INTERRUPTED);
           endGame();
           break;
         default:
@@ -274,12 +287,20 @@ public class GameUI implements AutoCloseable {
 
   public void endGame() throws IOException, InterruptedException {
     screen.clear();
-    gb.setGameStatus(MatchStatus.INTERRUPTED);
-    txt.putString(18, 6, gb.getStatus().toString());
-    if (gb.getCurrentPlayer() == null) {
-      txt.putString(18, 7, "BY: Player 1");
-    } else {
-      txt.putString(21, 7, "BY: " + gb.getCurrentPlayer().getPiece());
+    if (gb.getStatus() == MatchStatus.INTERRUPTED) {
+      gb.setGameStatus(MatchStatus.INTERRUPTED);
+      txt.putString(18, 6, gb.getStatus().toString());
+      if (gb.getCurrentPlayer() == null) {
+        txt.putString(18, 7, "BY: Player 1");
+      } else {
+        txt.putString(21, 7, "BY: " + gb.getCurrentPlayer().getPiece());
+      }
+    }
+    if (gb.getStatus() == MatchStatus.VICTORY) {
+      txt.putString(18, 6, gb.getStatus().toString());
+      txt.putString(18, 7, "BY:" + gb.getWinner().getPiece());
+    } else if (gb.getStatus() == MatchStatus.DRAW) {
+      txt.putString(18, 6, gb.getStatus().toString());
     }
     screen.refresh();
     terminal.setCursorVisible(false);

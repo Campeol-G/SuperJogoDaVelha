@@ -38,8 +38,8 @@ public class App {
             x.printStackTrace();
           }
         }
-
       }
+      ui.endGame();
     } catch (IOException e) {
       e.printStackTrace();
     } catch (InterruptedException y) {
