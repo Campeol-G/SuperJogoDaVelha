@@ -21,9 +21,6 @@ public class GameBoard {
   }
 
   public void startPlayer(char XorO) {
-    if (XorO != 'O' && XorO != 'X') {
-      throw new subGameException("Invalid piece choice");
-    }
     p1 = new Player(new Piece(XorO));
     p2 = new Player(new Piece(XorO == 'X' ? 'O' : 'X'));
     currentPlayer = p1;
@@ -46,18 +43,6 @@ public class GameBoard {
   private void changeTurn() {
     currentPlayer = currentPlayer == p1 ? p2 : p1;
     turn++;
-  }
-
-  public Player getCurrentPlayer() {
-    return currentPlayer;
-  }
-
-  public Integer getTurn() {
-    return turn;
-  }
-
-  public MatchStatus getStatus() {
-    return status;
   }
 
   public void startAllGames() {
@@ -130,4 +115,21 @@ public class GameBoard {
   public Match getGamePlaces(int i, int j) {
     return gamePlaces[i][j];
   }
+
+  public void setGameStatus(MatchStatus status) {
+    this.status = status;
+  }
+
+  public Player getCurrentPlayer() {
+    return currentPlayer;
+  }
+
+  public Integer getTurn() {
+    return turn;
+  }
+
+  public MatchStatus getStatus() {
+    return status;
+  }
+
 }

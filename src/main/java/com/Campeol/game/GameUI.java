@@ -30,12 +30,7 @@ public class GameUI implements AutoCloseable {
     screen.startScreen();
   }
 
-  public void render() throws IOException {
-    gb.renderAllGames(txt);
-    screen.refresh();
-  }
-
-  public char startGame() throws IOException {
+  public char startGame() throws IOException, InterruptedException {
     screen.clear();
     char kp;
     do {
@@ -43,11 +38,108 @@ public class GameUI implements AutoCloseable {
       screen.setCursorPosition(new TerminalPosition(0, 1));
       screen.refresh();
       KeyStroke keyPressed = screen.readInput();
+      if (keyPressed.getKeyType() == KeyType.Escape) {
+        endGame();
+        return ' ';
+      }
       Character c = keyPressed.getCharacter();
       kp = c == null ? ' ' : Character.toUpperCase(c);
     } while (kp != 'X' && kp != 'O');
     return kp;
 
+  }
+
+  public void startPlayer(char XorO) {
+    gb.startPlayer(XorO);
+  }
+
+  public void render() throws IOException {
+    gb.renderAllGames(txt);
+    screen.refresh();
+  }
+
+  public Match bigMove() throws IOException, InterruptedException {
+    int row = 1;
+    int column = 1;
+    Match match = gb.getGamePlaces(row, column);
+    screen.clear();
+    render();
+    KeyStroke keyPressed = null;
+    screen.setCursorPosition(new TerminalPosition(21,
+        9));
+    screen.refresh();
+    while (keyPressed == null || keyPressed.getKeyType() != KeyType.Enter
+        && keyPressed.getKeyType() != KeyType.Escape) {
+      keyPressed = screen.readInput();
+      switch (keyPressed.getKeyType()) {
+        case ArrowRight:
+          column++;
+          if (column > 2) {
+            column--;
+          }
+          screen.setCursorPosition(new TerminalPosition(column * 14 + 7,
+              row * 6 + 3));
+          match = gb.getGamePlaces(row, column);
+          screen.refresh();
+          break;
+        case ArrowLeft:
+          column--;
+          if (column < 0) {
+            column++;
+          }
+          screen.setCursorPosition(new TerminalPosition(column * 14 + 7,
+              row * 6 + 3));
+          match = gb.getGamePlaces(row, column);
+          screen.refresh();
+          break;
+        case ArrowUp:
+          row--;
+          if (row < 0) {
+            row++;
+          }
+          screen.setCursorPosition(new TerminalPosition(column * 14 + 7,
+              row * 6 + 3));
+          match = gb.getGamePlaces(row, column);
+          screen.refresh();
+          break;
+        case ArrowDown:
+          row++;
+          if (row > 2) {
+            row--;
+          }
+          screen.setCursorPosition(new TerminalPosition(column * 14 + 7,
+              row * 6 + 3));
+          match = gb.getGamePlaces(row, column);
+          screen.refresh();
+          break;
+        case Escape:
+          screen.clear();
+          endGame();
+          break;
+        default:
+          if (keyPressed != null
+              && (keyPressed.getKeyType() != KeyType.Enter && keyPressed.getKeyType() != KeyType.Escape)) {
+            txt.putString(15, 19, "Invalid Input!");
+            screen.refresh();
+            long endTime = System.currentTimeMillis() + 2000;
+            while (System.currentTimeMillis() < endTime) {
+              if (screen.pollInput() != null) {
+                break;
+              }
+              Thread.sleep(50);
+            }
+            txt.putString(15, 19, "               ");
+            screen.refresh();
+            keyPressed = null;
+          }
+      }
+      if (keyPressed != null && keyPressed.getKeyType() == KeyType.Enter) {
+        if (match.getMatchStatus() != MatchStatus.IN_PROGRESS) {
+          keyPressed = null;
+        }
+      }
+    }
+    return match;
   }
 
   public Position readInput(Match match) throws IOException, InterruptedException {
@@ -120,7 +212,7 @@ public class GameUI implements AutoCloseable {
           break;
         case Escape:
           screen.clear();
-          match.setMatchStatus(MatchStatus.INTERRUPTED);
+          endGame();
           break;
         default:
           if (keyPressed != null
@@ -144,6 +236,22 @@ public class GameUI implements AutoCloseable {
     return pos;
   }
 
+  public void makeMove(Match match, Position position) throws IOException, InterruptedException {
+    gb.makeMove(match, position);
+    if (gb.getMatchFinished()) {
+      endMatch(match);
+    }
+  }
+
+  public Match changeMatch(Position pos) throws IOException, InterruptedException {
+    if (gb.getGamePlaces(pos.getRow(), pos.getColumn()).getMatchStatus() != MatchStatus.IN_PROGRESS) {
+      return bigMove();
+    } else {
+      return gb.getGamePlaces(pos.getRow(), pos.getColumn());
+
+    }
+  }
+
   public void showErro(String msg) throws IOException, InterruptedException {
     screen.clear();
     txt.putString(4, 4, msg);
@@ -159,26 +267,31 @@ public class GameUI implements AutoCloseable {
     }
   }
 
-  // TODO metodo para printar o fim do jogo
-  /*
-   * public void endGame(Match match) throws IOException, InterruptedException {
-   * match.endMatch(txt, gb.getCurrentPlayer());
-   * screen.refresh();
-   * long endTime = System.currentTimeMillis() + 2000;
-   * KeyStroke key = null;
-   * while (System.currentTimeMillis() < endTime) {
-   * key = screen.pollInput();
-   * if (key != null) {
-   * break;
-   * }
-   * Thread.sleep(50);
-   * }
-   * }
-   */
-
   public void endMatch(Match match) throws IOException, InterruptedException {
     match.render(txt, gb.getCurrentPlayer(), null);
     screen.refresh();
+  }
+
+  public void endGame() throws IOException, InterruptedException {
+    screen.clear();
+    gb.setGameStatus(MatchStatus.INTERRUPTED);
+    txt.putString(18, 6, gb.getStatus().toString());
+    if (gb.getCurrentPlayer() == null) {
+      txt.putString(18, 7, "BY: Player 1");
+    } else {
+      txt.putString(21, 7, "BY: " + gb.getCurrentPlayer().getPiece());
+    }
+    screen.refresh();
+    terminal.setCursorVisible(false);
+    long endTime = System.currentTimeMillis() + 2000;
+    KeyStroke key = null;
+    while (System.currentTimeMillis() < endTime) {
+      key = screen.pollInput();
+      if (key != null) {
+        break;
+      }
+      Thread.sleep(50);
+    }
   }
 
   public void close() throws IOException {
@@ -189,111 +302,8 @@ public class GameUI implements AutoCloseable {
     return gb.getGamePlaces(i, j);
   }
 
-  public void startPlayer(char XorO) {
-    gb.startPlayer(XorO);
-  }
-
-  public void makeMove(Match match, Position position) throws IOException, InterruptedException {
-    gb.makeMove(match, position);
-    if (gb.getMatchFinished()) {
-      endMatch(match);
-    }
-  }
-
-  public Match bigMove() throws IOException, InterruptedException {
-    int row = 1;
-    int column = 1;
-    Match match = gb.getGamePlaces(row, column);
-    screen.clear();
-    render();
-    KeyStroke keyPressed = null;
-    screen.setCursorPosition(new TerminalPosition(21,
-        9));
-    screen.refresh();
-    while (keyPressed == null || keyPressed.getKeyType() != KeyType.Enter
-        && keyPressed.getKeyType() != KeyType.Escape) {
-      keyPressed = screen.readInput();
-      switch (keyPressed.getKeyType()) {
-        case ArrowRight:
-          column++;
-          if (column > 2) {
-            column--;
-          }
-          screen.setCursorPosition(new TerminalPosition(column * 14 + 7,
-              row * 6 + 3));
-          match = gb.getGamePlaces(row, column);
-          screen.refresh();
-          break;
-        case ArrowLeft:
-          column--;
-          if (column < 0) {
-            column++;
-          }
-          screen.setCursorPosition(new TerminalPosition(column * 14 + 7,
-              row * 6 + 3));
-          match = gb.getGamePlaces(row, column);
-          screen.refresh();
-          break;
-        case ArrowUp:
-          row--;
-          if (row < 0) {
-            row++;
-          }
-          screen.setCursorPosition(new TerminalPosition(column * 14 + 7,
-              row * 6 + 3));
-          match = gb.getGamePlaces(row, column);
-          screen.refresh();
-          break;
-        case ArrowDown:
-          row++;
-          if (row > 2) {
-            row--;
-          }
-          screen.setCursorPosition(new TerminalPosition(column * 14 + 7,
-              row * 6 + 3));
-          match = gb.getGamePlaces(row, column);
-          screen.refresh();
-          break;
-        case Escape:
-          screen.clear();
-          match.setMatchStatus(MatchStatus.INTERRUPTED);
-          break;
-        default:
-          if (keyPressed != null
-              && (keyPressed.getKeyType() != KeyType.Enter && keyPressed.getKeyType() != KeyType.Escape)) {
-            txt.putString(15, 19, "Invalid Input!");
-            screen.refresh();
-            long endTime = System.currentTimeMillis() + 2000;
-            while (System.currentTimeMillis() < endTime) {
-              if (screen.pollInput() != null) {
-                break;
-              }
-              Thread.sleep(50);
-            }
-            txt.putString(15, 19, "               ");
-            screen.refresh();
-            keyPressed = null;
-          }
-      }
-      if (keyPressed != null && keyPressed.getKeyType() == KeyType.Enter) {
-        if (match.getMatchStatus() != MatchStatus.IN_PROGRESS) {
-          keyPressed = null;
-        }
-      }
-    }
-    return match;
-  }
-
-  public Match changeMatch(Position pos) throws IOException, InterruptedException {
-    if (gb.getGamePlaces(pos.getRow(), pos.getColumn()).getMatchStatus() != MatchStatus.IN_PROGRESS) {
-      return bigMove();
-    } else {
-      return gb.getGamePlaces(pos.getRow(), pos.getColumn());
-
-    }
-  }
-
   public MatchStatus getStatus() {
     return gb.getStatus();
   }
+
 }

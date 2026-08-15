@@ -13,6 +13,9 @@ public class App {
     // just test
     try (GameUI ui = new GameUI()) {
       ui.startPlayer(ui.startGame());
+      if (ui.getStatus() != MatchStatus.IN_PROGRESS) {
+        return;
+      }
       Match match = ui.bigMove();
       while (ui.getStatus() == MatchStatus.IN_PROGRESS) {
         ui.render();
