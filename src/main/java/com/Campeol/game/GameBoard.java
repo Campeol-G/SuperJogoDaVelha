@@ -5,10 +5,15 @@ import com.Campeol.subgame.Match;
 import com.Campeol.subgame.Piece;
 import com.Campeol.subgame.Player;
 import com.Campeol.subgame.Position;
-import com.Campeol.subgame.exception.subGameException;
 import com.googlecode.lanterna.graphics.TextGraphics;
 
 public class GameBoard {
+  private static final int BOARD_COUNT = 3;
+  private static final int COL_SPACING = 14;
+  private static final int ROW_SPACING = 6;
+  private static final int COL_OFFSET = 2;
+  private static final int ROW_OFFSET = 1;
+
   private Match[][] gamePlaces;
   private Player p1, p2, currentPlayer, winner;
   private Integer turn;
@@ -52,61 +57,64 @@ public class GameBoard {
   }
 
   public void startAllGames() {
-    gamePlaces = new Match[3][3];
+    gamePlaces = new Match[BOARD_COUNT][BOARD_COUNT];
     for (int i = 0; i < gamePlaces.length; i++) {
       for (int j = 0; j < gamePlaces[i].length; j++) {
-        gamePlaces[i][j] = new Match(i * 6 + 1, j * 14 + 2);
-
+        gamePlaces[i][j] = new Match(i * ROW_SPACING + ROW_OFFSET, j * COL_SPACING + COL_OFFSET);
       }
     }
   }
 
-  // TODO refector this hardcoded position;
   public void divisors(TextGraphics txt) {
-    // columns
-    for (int i = 0; i < 19; i++) {
-      txt.putString(14, i, "║");
-      txt.putString(28, i, "║");
+    int width = BOARD_COUNT * COL_SPACING;
+    int height = BOARD_COUNT * ROW_SPACING;
+
+    // internal vertical dividers
+    for (int c = 1; c < BOARD_COUNT; c++) {
+      for (int i = 0; i <= height; i++) {
+        txt.putString(c * COL_SPACING, i, "║");
+      }
     }
 
-    // rows
-    for (int i = 0; i < 43; i++) {
-      txt.putString(i, 6, "═");
-      txt.putString(i, 12, "═");
+    // internal horizontal dividers
+    for (int r = 1; r < BOARD_COUNT; r++) {
+      for (int i = 0; i <= width; i++) {
+        txt.putString(i, r * ROW_SPACING, "═");
+      }
     }
 
-    // connectors
-    txt.putString(14, 6, "╬");
-    txt.putString(28, 6, "╬");
-    txt.putString(14, 12, "╬");
-    txt.putString(28, 12, "╬");
+    // internal connectors
+    for (int r = 1; r < BOARD_COUNT; r++) {
+      for (int c = 1; c < BOARD_COUNT; c++) {
+        txt.putString(c * COL_SPACING, r * ROW_SPACING, "╬");
+      }
+    }
 
-    // external contour
-    // columns
-    for (int i = 0; i < 19; i++) {
+    // external contour columns
+    for (int i = 0; i <= height; i++) {
       txt.putString(0, i, "║");
-      txt.putString(42, i, "║");
+      txt.putString(width, i, "║");
     }
 
-    // rows
-    for (int i = 0; i < 43; i++) {
-      txt.putString(i, 18, "═");
+    // external contour rows
+    for (int i = 0; i <= width; i++) {
       txt.putString(i, 0, "═");
-      txt.putString(12, 0, " SUPER TIC-TAC-TOE ");
+      txt.putString(i, height, "═");
     }
+    txt.putString(12, 0, " SUPER TIC-TAC-TOE ");
 
-    // connectors
+    // external contour connectors
     txt.putString(0, 0, "╔");
-    txt.putString(42, 0, "╗");
-    txt.putString(0, 12, "╠");
-    txt.putString(42, 12, "╣");
-    txt.putString(0, 6, "╠");
-    txt.putString(42, 6, "╣");
-    txt.putString(0, 18, "╚");
-    txt.putString(42, 18, "╝");
-    txt.putString(14, 18, "╩");
-    txt.putString(28, 18, "╩");
-
+    txt.putString(width, 0, "╗");
+    for (int r = 1; r < BOARD_COUNT; r++) {
+      txt.putString(0, r * ROW_SPACING, "╠");
+      txt.putString(width, r * ROW_SPACING, "╣");
+    }
+    txt.putString(0, height, "╚");
+    txt.putString(width, height, "╝");
+    for (int c = 1; c < BOARD_COUNT; c++) {
+      txt.putString(c * COL_SPACING, height, "╩");
+    }
   }
 
   public void renderAllGames(TextGraphics txt) {

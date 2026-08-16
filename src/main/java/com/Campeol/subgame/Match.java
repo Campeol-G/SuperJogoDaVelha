@@ -3,7 +3,6 @@ package com.Campeol.subgame;
 import com.Campeol.MatchStatus;
 import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.graphics.TextGraphics;
-import com.googlecode.lanterna.screen.Screen;
 
 public class Match {
 
