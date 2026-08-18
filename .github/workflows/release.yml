@@ -44,7 +44,7 @@ jobs:
       - name: Package with jpackage (Windows exe)
         if: runner.os == 'Windows'
         run: |
-          jpackage --name SuperJogoDavelha --app-version 1.0.0 --input stage --main-jar SuperJogoDavelha.jar --type exe --win-console --dest dist
+          jpackage --name SuperJogoDavelha --app-version 1.0.0 --input stage --main-jar SuperJogoDavelha.jar --type exe --win-console --win-menu --win-menu-group "SuperJogoDavelha" --win-shortcut --win-dir-chooser --dest dist
           Get-ChildItem dist -Filter *.exe | % { Move-Item $_.FullName dist\SuperJogoDavelha-windows.exe -Force }
         shell: pwsh
 
