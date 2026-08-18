@@ -6,6 +6,11 @@
 
 # Maven build output
 target/
+dist/
+stage/
+
+# maven-shade-plugin byproduct
+dependency-reduced-pom.xml
 
 # Compiled class files
 *.class

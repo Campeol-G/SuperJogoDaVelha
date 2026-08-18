@@ -17,23 +17,28 @@ import com.googlecode.lanterna.terminal.Terminal;
 
 public class GameUI implements AutoCloseable {
 
+  private static final int MIN_COLS = 50;
+  private static final int MIN_ROWS = 24;
   private Screen screen;
   private Terminal terminal;
   private TextGraphics txt;
   GameBoard gb;
 
-  public GameUI() throws IOException {
+  public GameUI() throws IOException, InterruptedException {
     this.terminal = new DefaultTerminalFactory().createTerminal();
     this.screen = new TerminalScreen(terminal);
+    screen.startScreen();
     this.txt = screen.newTextGraphics();
     gb = new GameBoard();
-    screen.startScreen();
+    waitForEnoughSize();
+
   }
 
   public char startGame() throws IOException, InterruptedException {
     screen.clear();
     char kp;
     do {
+      waitForEnoughSize();
       txt.putString(0, 0, "Chose a piece to play[X/O]: ");
       screen.setCursorPosition(new TerminalPosition(0, 1));
       screen.refresh();
@@ -53,7 +58,8 @@ public class GameUI implements AutoCloseable {
     gb.startPlayer(XorO);
   }
 
-  public void render() throws IOException {
+  public void render() throws IOException, InterruptedException {
+    waitForEnoughSize();
     gb.renderAllGames(txt);
     screen.refresh();
   }
@@ -68,6 +74,7 @@ public class GameUI implements AutoCloseable {
     screen.setCursorPosition(new TerminalPosition(21,
         9));
     screen.refresh();
+
     while (keyPressed == null || keyPressed.getKeyType() != KeyType.Enter
         && keyPressed.getKeyType() != KeyType.Escape) {
       keyPressed = screen.readInput();
@@ -325,6 +332,29 @@ public class GameUI implements AutoCloseable {
 
   public MatchStatus getStatus() {
     return gb.getStatus();
+  }
+
+  private boolean isSizeOk() throws IOException {
+    return terminal.getTerminalSize().getRows() >= MIN_ROWS && terminal.getTerminalSize().getColumns() >= MIN_COLS;
+  }
+
+  private void waitForEnoughSize() throws IOException, InterruptedException {
+    while (!isSizeOk()) {
+      screen.clear();
+      txt.putString(0, 0, "Redimensione a janela");
+      txt.putString(0, 1, "Minimo: 50x24");
+      screen.refresh();
+      long endTime = System.currentTimeMillis() + 50;
+      KeyStroke key = null;
+      while (System.currentTimeMillis() < endTime) {
+        key = screen.pollInput();
+        if (key != null) {
+          break;
+        }
+        Thread.sleep(50);
+      }
+
+    }
   }
 
 }

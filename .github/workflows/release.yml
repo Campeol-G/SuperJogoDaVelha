@@ -1,0 +1,88 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Package on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Build fat JAR
+        run: mvn -B -ntp package
+
+      - name: Prepare staging
+        run: |
+          mkdir -p stage
+          cp target/SuperJogoDavelha.jar stage/
+        shell: bash
+
+      - name: Install fakeroot (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fakeroot
+        shell: bash
+
+      - name: Package with jpackage (Windows exe)
+        if: runner.os == 'Windows'
+        run: |
+          jpackage --name SuperJogoDavelha --app-version 1.0.0 --input stage --main-jar SuperJogoDavelha.jar --type exe --win-console --dest dist
+          Get-ChildItem dist -Filter *.exe | % { Move-Item $_.FullName dist\SuperJogoDavelha-windows.exe -Force }
+        shell: pwsh
+
+      - name: Package with jpackage (Linux deb)
+        if: runner.os == 'Linux'
+        run: |
+          jpackage --name SuperJogoDavelha --app-version 1.0.0 --input stage --main-jar SuperJogoDavelha.jar --type deb --dest dist
+          mv dist/*.deb dist/SuperJogoDavelha-linux.deb
+        shell: bash
+
+      - name: Package with jpackage (macOS dmg)
+        if: runner.os == 'macOS'
+        run: |
+          jpackage --name SuperJogoDavelha --app-version 1.0.0 --input stage --main-jar SuperJogoDavelha.jar --type dmg --dest dist
+          mv dist/*.dmg dist/SuperJogoDavelha-macos.dmg
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SuperJogoDavelha-${{ matrix.os }}
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*/*
+          generate_release_notes: true
