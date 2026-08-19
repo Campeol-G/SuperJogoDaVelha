@@ -1,7 +1,7 @@
 # Super Jogo da Velha
 
 <p align="center">
-  <img alt="Java 26+" src="https://img.shields.io/badge/Java-26+-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white">
+  <img alt="Java 21+" src="https://img.shields.io/badge/Java-21+-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white">
   <img alt="Terminal" src="https://img.shields.io/badge/CLI-Terminal-4D4D4D?style=for-the-badge&logo=gnu-bash&logoColor=white">
 </p>
 
@@ -32,7 +32,7 @@ A jogada em uma casa do tabuleiro pequeno **determina qual tabuleiro grande o ad
 
 > **⚠️ Se o seu adversário te mandar para um tabuleiro que já foi ganho ou que está empatado (cheio), você ganha o direito de jogar em qualquer tabuleiro livre**!
 
-> **⚠️ Um tabuleiro empatado nao sera contabilizado para a nenhum dos jogadores e portanto, sera ignorado para o resultado final**!
+> **⚠️ Um tabuleiro empatado não será contabilizado para nenhum dos jogadores e, portanto, será ignorado para o resultado final!**
 
 ## Controles
 
@@ -65,7 +65,7 @@ java -jar SuperJogoDavelha.jar
 
 > **Requisito:** Java 21 ou superior.
 
-> O jogo roda em um terminal com suporte a cores ANSI (ex.: Terminal do Windows, iTerm2, GNOME Terminal).
+> O jogo roda em um terminal com suporte a cores ANSI (ex.: Windows Terminal, iTerm2, GNOME Terminal). No Prompt de Comando/PowerShell antigo do Windows, execute `chcp 65001` antes de rodar para que os caracteres de borda (║ ═ ╬) sejam exibidos corretamente.
 
 ## Compilando a partir do código-fonte
 
@@ -79,6 +79,6 @@ mvn package
 java -jar target/SuperJogoDavelha.jar
 ```
 
-O Maven gera um **fat JAR** (todas as dependências empacotadas) em `target/SuperJogoDavelha.jar`.rande o adversário vai jogar em seguida\*\*. Vencer três tabuleiros pequenos em linha (horizontal, vertical ou diagonal) vence a partida.
+O Maven gera um **fat JAR** (todas as dependências empacotadas) em `target/SuperJogoDavelha.jar`.
 
-> **⚠️ Regra de Ouro:** Se o seu adversário te mandar para um tabuleiro que já foi ganho ou que está empatado (cheio), você ganha o direito de jogar em **qualquer tabuleiro livre**!
+> Os instaladores (`.exe`, `.deb` e `.dmg`) são gerados automaticamente pelo GitHub Actions para Windows, Linux e macOS a cada release.

@@ -127,7 +127,7 @@ public class GameBoard {
   }
 
   public boolean gameOver() {
-    return testColumn() || testDiagnoal() || testRow();
+    return testColumn() || testDiagonal() || testRow();
   }
 
   public boolean draw() {
@@ -150,7 +150,7 @@ public class GameBoard {
         m2.getMatchStatus() == MatchStatus.VICTORY &&
         m3.getMatchStatus() == MatchStatus.VICTORY) {
       Piece p1 = m1.getWinner().getPiece();
-      return p1 == m2.getWinner().getPiece() && p1 == m3.getWinner().getPiece();
+      return p1.equals(m2.getWinner().getPiece()) && p1.equals(m3.getWinner().getPiece());
     }
     return false;
   }
@@ -167,7 +167,7 @@ public class GameBoard {
         samePlayer(2, 0, 2, 1, 2, 2);
   }
 
-  private boolean testDiagnoal() {
+  private boolean testDiagonal() {
     return samePlayer(0, 0, 1, 1, 2, 2) ||
         samePlayer(0, 2, 1, 1, 2, 0);
   }

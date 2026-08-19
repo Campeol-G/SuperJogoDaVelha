@@ -3,10 +3,9 @@ package com.Campeol;
 import java.io.IOException;
 
 import com.Campeol.game.GameUI;
-import com.Campeol.game.exception.GameException;
 import com.Campeol.subgame.Match;
 import com.Campeol.subgame.Position;
-import com.Campeol.subgame.exception.subGameException;
+import com.Campeol.subgame.exception.SubGameException;
 
 public class App {
   public static void main(String[] args) {
@@ -21,19 +20,13 @@ public class App {
         ui.render();
         try {
           Position pos = ui.readInput(match);
-          if (match.getMatchStatus() != MatchStatus.INTERRUPTED) {
+          if (ui.getStatus() == MatchStatus.IN_PROGRESS) {
             ui.makeMove(match, pos);
             match = ui.changeMatch(pos);
           }
-        } catch (subGameException e) {
+        } catch (SubGameException e) {
           try {
             ui.showErro(e.getMessage());
-          } catch (InterruptedException x) {
-            x.printStackTrace();
-          }
-        } catch (GameException y) {
-          try {
-            ui.showErro(y.getMessage());
           } catch (InterruptedException x) {
             x.printStackTrace();
           }

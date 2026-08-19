@@ -1,6 +1,6 @@
 package com.Campeol.subgame;
 
-import com.Campeol.subgame.exception.subGameException;
+import com.Campeol.subgame.exception.SubGameException;
 import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.graphics.TextGraphics;
 
@@ -33,7 +33,7 @@ public class Board {
         String content = piece != null ? piece.toString() : " ";
         txt.putString(j * 4 + offsetColumn, i * 2 + offsetRow, " " + content + " " + sep);
       }
-      String sep = (i < row - 1) ? "---" + "+---".repeat(column - 1) : "";
+      String sep = (i < row - 1) ? "---" + "+---".repeat(column - 2) + "+----" : "";
       txt.putString(0 + offsetColumn, i * 2 + 1 + offsetRow, sep);
     }
     txt.setBackgroundColor(null);
@@ -45,14 +45,14 @@ public class Board {
       for (int j = 0; j < column; j++) {
         txt.putString(j * 4 + offsetColumn, i * 2 + offsetRow, "    ");
       }
-      String sep = (i < row - 1) ? "   " + "    ".repeat(column - 1) : "";
+      String sep = (i < row - 1) ? "   " + "    ".repeat(column - 2) + "     " : "";
       txt.putString(0 + offsetColumn, i * 2 + 1 + offsetRow, sep);
     }
   }
 
   public void placePiece(Player player, Position position) {
     if (thereIsAPiece(position)) {
-      throw new subGameException("There's already a piece there");
+      throw new SubGameException("There's already a piece there");
     }
     boardPlace[position.getRow()][position.getColumn()] = player.getPiece();
   }
@@ -70,7 +70,7 @@ public class Board {
 
   public boolean thereIsAPiece(Position position) {
     if (!positionExist(position)) {
-      throw new subGameException("this is not a possible position");
+      throw new SubGameException("this is not a possible position");
     }
     return boardPlace[position.getRow()][position.getColumn()] != null;
   }
@@ -84,7 +84,7 @@ public class Board {
     Piece a = boardPlace[r1][c1];
     Piece b = boardPlace[r2][c2];
     Piece c = boardPlace[r3][c3];
-    return a != null && a == b && b == c;
+    return a != null && a.equals(b) && b.equals(c);
   }
 
   public boolean checkDiagnoal() {

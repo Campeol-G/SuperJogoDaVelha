@@ -8,7 +8,6 @@
 target/
 dist/
 stage/
-docs/
 
 # maven-shade-plugin byproduct
 dependency-reduced-pom.xml

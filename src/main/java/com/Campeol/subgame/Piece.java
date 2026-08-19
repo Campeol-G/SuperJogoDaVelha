@@ -1,5 +1,7 @@
 package com.Campeol.subgame;
 
+import java.util.Objects;
+
 public class Piece {
 
   private Position position;
@@ -29,5 +31,22 @@ public class Piece {
       return "X";
     }
 
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    Piece piece = (Piece) o;
+    return XorO == piece.XorO;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(XorO);
   }
 }

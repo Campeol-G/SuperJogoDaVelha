@@ -75,6 +75,10 @@ jobs:
             --win-dir-chooser `
             --dest dist
 
+          Get-ChildItem dist -Filter *.exe | ForEach-Object {
+            Move-Item -Path $_.FullName -Destination dist\SuperJogoDavelha-windows.exe -Force
+          }
+
           Write-Host "=== DIST ==="
           Get-ChildItem dist -Recurse
 

@@ -44,6 +44,7 @@ public class GameUI implements AutoCloseable {
       screen.refresh();
       KeyStroke keyPressed = screen.readInput();
       if (keyPressed.getKeyType() == KeyType.Escape) {
+        gb.setGameStatus(MatchStatus.INTERRUPTED);
         endGame();
         return ' ';
       }
