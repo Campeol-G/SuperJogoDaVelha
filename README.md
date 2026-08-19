@@ -5,7 +5,7 @@
   <img alt="Terminal" src="https://img.shields.io/badge/CLI-Terminal-4D4D4D?style=for-the-badge&logo=gnu-bash&logoColor=white">
 </p>
 
-O clássico jogo da velha, mas **nove vezes mais estratégico**. No Super Jogo da Velha, cada casa do tabuleiro esconde um jogo completo: para vencer a partida, você precisa vencer três desses tabuleiros em linha. Cada jogada sua define **qual tabuleiro o adversário vai atacar em seguida**, antecipar os próximos movimentos é tão importante quanto executar o seu. Tudo direto no terminal, sem tela gráfica: só **X**, **O** e estratégia.
+O clássico jogo da velha, mas **nove vezes mais estratégico**. No Super Jogo da Velha, cada casa do tabuleiro esconde um jogo completo: para vencer a partida, você precisa vencer três desses tabuleiros em linha. Cada jogada sua define **qual tabuleiro o adversário vai atacar em seguida** — antecipar os próximos movimentos é tão importante quanto executar o seu. Tudo direto no terminal, sem tela gráfica: só **X**, **O** e estratégia.
 
 <div align="center">
   <img src="docs/showCase.gif" alt="Demonstração em GIF do Super Jogo da Velha" width="700">
@@ -17,20 +17,20 @@ O clássico jogo da velha, mas **nove vezes mais estratégico**. No Super Jogo d
 
 ## ✨ Destaques
 
-- **Interface Limpa:** Jogue direto no seu terminal (CLI) sem distrações.
-- **Lógica Avançada:** Implementação completa das regras oficiais do Ultimate Tic-Tac-Toe.
-- **Multiplataforma:** Roda em Windows, Linux e macOS perfeitamente.
+- **Interface limpa** — Jogue direto no seu terminal (CLI), sem distrações.
+- **Lógica avançada** — Implementação completa das regras oficiais do Ultimate Tic-Tac-Toe.
+- **Multiplataforma** — Roda perfeitamente em Windows, Linux e macOS.
 
 ## Como jogar
 
 O jogo funciona em duas camadas:
 
-- **Tabuleiro grande (3×3):** cada uma das 9 casas é um jogo da velha individual.
-- **Tabuleiros pequenos (3×3):** dentro de cada casa, você disputa um jogo da velha normal.
+- **Tabuleiro grande (3×3)** — cada uma das 9 casas é um jogo da velha individual.
+- **Tabuleiros pequenos (3×3)** — dentro de cada casa, você disputa um jogo da velha normal.
 
 A jogada em uma casa do tabuleiro pequeno **determina qual tabuleiro grande o adversário vai jogar em seguida**. Vencer três tabuleiros pequenos em linha (horizontal, vertical ou diagonal) vence a partida.
 
-> **⚠️ Se o seu adversário te mandar para um tabuleiro que já foi ganho ou que está empatado (cheio), você ganha o direito de jogar em qualquer tabuleiro livre**!
+> **⚠️ Se o seu adversário te mandar para um tabuleiro que já foi ganho ou que está empatado (cheio), você ganha o direito de jogar em qualquer tabuleiro livre!**
 
 > **⚠️ Um tabuleiro empatado não será contabilizado para nenhum dos jogadores e, portanto, será ignorado para o resultado final!**
 
@@ -47,13 +47,13 @@ A jogada em uma casa do tabuleiro pequeno **determina qual tabuleiro grande o ad
 
 Baixe a versão mais recente na página de [releases](https://github.com/Campeol-G/SuperJogoDaVelha/releases).
 
-### Opção 1 — Instalador
+### Opção 1 — Instaladores e versão portátil
 
-| Sistema | Arquivo                        | Instalação                                             |
-| ------- | ------------------------------ | ------------------------------------------------------ |
-| Windows | `SuperJogoDavelha-windows.exe` | Execute o instalador e siga o assistente               |
-| Linux   | `SuperJogoDavelha-linux.deb`   | `sudo dpkg -i SuperJogoDavelha-linux.deb`              |
-| macOS   | `SuperJogoDavelha-macos.dmg`   | Abra o `.dmg` e arraste o app para a pasta Aplicativos |
+| Sistema | Arquivo                                 | Instalação                                             |
+| ------- | --------------------------------------- | ------------------------------------------------------ |
+| Windows | `SuperJogoDavelha-portable-windows.zip` | Extraia o `.zip` e execute o `SuperJogoDavelha.exe`    |
+| Linux   | `SuperJogoDavelha-linux.deb`            | `sudo dpkg -i SuperJogoDavelha-linux.deb`              |
+| macOS   | `SuperJogoDavelha-macos.dmg`            | Abra o `.dmg` e arraste o app para a pasta Aplicativos |
 
 ### Opção 2 — Rodar direto do JAR (sem instalar)
 
@@ -81,4 +81,4 @@ java -jar target/SuperJogoDavelha.jar
 
 O Maven gera um **fat JAR** (todas as dependências empacotadas) em `target/SuperJogoDavelha.jar`.
 
-> Os instaladores (`.exe`, `.deb` e `.dmg`) são gerados automaticamente pelo GitHub Actions para Windows, Linux e macOS a cada release.
+> Os instaladores (`.deb` e `.dmg`) e a versão portátil do Windows (`.zip`) são gerados automaticamente pelo GitHub Actions para Linux, macOS e Windows a cada release.

@@ -30,7 +30,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "26"
+          java-version: "21"
           cache: maven
 
       - name: Build fat JAR
@@ -47,42 +47,26 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y fakeroot
         shell: bash
 
-      - name: Package with jpackage (Windows)
+      - name: Package with jpackage (Windows portable zip)
         if: runner.os == 'Windows'
-        shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist
-          New-Item -ItemType Directory -Force -Path dist\app-image
-    
+          New-Item -ItemType Directory -Force -Path dist\image
+
           jpackage `
             --name SuperJogoDavelha `
             --app-version 1.0.0 `
             --input stage `
             --main-jar SuperJogoDavelha.jar `
             --type app-image `
-            --win-console `
-            --dest dist\app-image
-      
-          Compress-Archive `
-            -Path dist\app-image\SuperJogoDavelha `
-            -DestinationPath dist\SuperJogoDavelha-portable-windows.zip `
-            -Force
-    
-          jpackage `
-            --name SuperJogoDavelha `
-            --app-version 1.0.0 `
-            --app-image dist\app-image\SuperJogoDavelha `
-            --type exe `
-            --win-menu `
-            --win-menu-group "SuperJogoDavelha" `
-            --win-shortcut `
-            --win-dir-chooser `
-            --dest dist
-      
-          Get-ChildItem dist -Filter "SuperJogoDavelha-*.exe" |
-            Move-Item -Destination dist\SuperJogoDavelha-windows-installer.exe -Force
-      
-          Write-Host "===== ARQUIVOS FINAIS ====="
+            --dest dist\image `
+            --win-console
+
+          Compress-Archive -Path dist\image\SuperJogoDavelha -DestinationPath dist\SuperJogoDavelha-portable-windows.zip -Force
+
+          Remove-Item -Recurse -Force dist\image
+
+          Write-Host "=== DIST ==="
           Get-ChildItem dist -Recurse
       - name: Package with jpackage (Linux deb)
         if: runner.os == 'Linux'
