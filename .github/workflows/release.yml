@@ -47,18 +47,43 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y fakeroot
         shell: bash
 
-      - name: Package with jpackage (Windows exe)
+      - name: Package with jpackage (Windows)
         if: runner.os == 'Windows'
         run: |
-          jpackage --name SuperJogoDavelha --app-version 1.0.0 --input stage --main-jar SuperJogoDavelha.jar --type exe --win-console --win-menu --win-menu-group "SuperJogoDavelha" --win-shortcut --win-dir-chooser --dest dist
-          Get-ChildItem dist -Filter *.exe | % { Move-Item $_.FullName dist\SuperJogoDavelha-windows.exe -Force }
-        shell: pwsh
+          New-Item -ItemType Directory -Force -Path dist
+          New-Item -ItemType Directory -Force -Path dist\image
+
+          jpackage `
+            --name SuperJogoDavelha `
+            --app-version 1.0.0 `
+            --input stage `
+            --main-jar SuperJogoDavelha.jar `
+            --type app-image `
+            --dest dist\image `
+            --win-console
+
+          jpackage `
+            --name SuperJogoDavelha `
+            --app-version 1.0.0 `
+            --input stage `
+            --main-jar SuperJogoDavelha.jar `
+            --type exe `
+            --win-console `
+            --win-menu `
+            --win-menu-group "SuperJogoDavelha" `
+            --win-shortcut `
+            --win-dir-chooser `
+            --dest dist
+
+          Write-Host "=== DIST ==="
+          Get-ChildItem dist -Recurse
 
       - name: Package with jpackage (Linux deb)
         if: runner.os == 'Linux'
         run: |
           jpackage --name SuperJogoDavelha --app-version 1.0.0 --input stage --main-jar SuperJogoDavelha.jar --type deb --dest dist
           mv dist/*.deb dist/SuperJogoDavelha-linux.deb
+          cp stage/SuperJogoDavelha.jar dist/SuperJogoDavelha.jar
         shell: bash
 
       - name: Package with jpackage (macOS dmg)
