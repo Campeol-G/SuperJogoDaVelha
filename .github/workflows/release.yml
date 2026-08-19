@@ -49,20 +49,25 @@ jobs:
 
       - name: Package with jpackage (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist
-          New-Item -ItemType Directory -Force -Path dist\image
-
+          New-Item -ItemType Directory -Force -Path dist\app-image
+    
           jpackage `
             --name SuperJogoDavelha `
             --app-version 1.0.0 `
             --input stage `
             --main-jar SuperJogoDavelha.jar `
             --type app-image `
-            --dest dist\image `
             --win-console `
             --dest dist\app-image
-
+      
+          Compress-Archive `
+            -Path dist\app-image\SuperJogoDavelha `
+            -DestinationPath dist\SuperJogoDavelha-portable-windows.zip `
+            -Force
+    
           jpackage `
             --name SuperJogoDavelha `
             --app-version 1.0.0 `
@@ -73,10 +78,12 @@ jobs:
             --win-shortcut `
             --win-dir-chooser `
             --dest dist
-
-          Write-Host "=== ARQUIVOS GERADOS ==="
+      
+          Get-ChildItem dist -Filter "SuperJogoDavelha-*.exe" |
+            Move-Item -Destination dist\SuperJogoDavelha-windows-installer.exe -Force
+      
+          Write-Host "===== ARQUIVOS FINAIS ====="
           Get-ChildItem dist -Recurse
-        shell: pwsh
       - name: Package with jpackage (Linux deb)
         if: runner.os == 'Linux'
         run: |
