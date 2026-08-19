@@ -33,7 +33,7 @@ public class Board {
         String content = piece != null ? piece.toString() : " ";
         txt.putString(j * 4 + offsetColumn, i * 2 + offsetRow, " " + content + " " + sep);
       }
-      String sep = (i < row - 1) ? "---" + "+---".repeat(column - 2) + "+----" : "";
+      String sep = (i < row - 1) ? "---" + "+---".repeat(column - 2) + "+---" : "";
       txt.putString(0 + offsetColumn, i * 2 + 1 + offsetRow, sep);
     }
     txt.setBackgroundColor(null);
