@@ -30,7 +30,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "26"
+          java-version: "21"
           cache: maven
 
       - name: Build fat JAR
@@ -47,7 +47,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y fakeroot
         shell: bash
 
-      - name: Package with jpackage (Windows)
+      - name: Package with jpackage (Windows portable zip)
         if: runner.os == 'Windows'
         run: |
           New-Item -ItemType Directory -Force -Path dist
@@ -62,22 +62,9 @@ jobs:
             --dest dist\image `
             --win-console
 
-          jpackage `
-            --name SuperJogoDavelha `
-            --app-version 1.0.0 `
-            --input stage `
-            --main-jar SuperJogoDavelha.jar `
-            --type exe `
-            --win-console `
-            --win-menu `
-            --win-menu-group "SuperJogoDavelha" `
-            --win-shortcut `
-            --win-dir-chooser `
-            --dest dist
+          Compress-Archive -Path dist\image\SuperJogoDavelha -DestinationPath dist\SuperJogoDavelha-portable-windows.zip -Force
 
-          Get-ChildItem dist -Filter *.exe | ForEach-Object {
-            Move-Item -Path $_.FullName -Destination dist\SuperJogoDavelha-windows.exe -Force
-          }
+          Remove-Item -Recurse -Force dist\image
 
           Write-Host "=== DIST ==="
           Get-ChildItem dist -Recurse
