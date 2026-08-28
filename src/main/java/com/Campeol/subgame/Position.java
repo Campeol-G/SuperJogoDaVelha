@@ -1,6 +1,8 @@
 package com.Campeol.subgame;
 
-public class Position {
+import java.io.Serializable;
+
+public class Position implements Serializable {
 
   private Integer row;
   private Integer column;

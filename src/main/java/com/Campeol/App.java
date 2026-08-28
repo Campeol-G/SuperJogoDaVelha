@@ -16,9 +16,9 @@ public class App {
     Scanner sc = new Scanner(System.in);
     String test = sc.nextLine();
     if (test.charAt(0) == '1') {
-      Server.start(12345);
+      new Server().start(8080, "test");
     } else {
-      Client.start(12345, sc);
+      new Client().start(8080, sc);
     }
     sc.nextLine();
     try (GameUI ui = new GameUI()) {

@@ -3,6 +3,7 @@
 .classpath
 .project
 *.prefs
+*.p12
 
 # Maven build output
 target/
