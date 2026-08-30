@@ -8,31 +8,35 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
-import java.util.Scanner;
 
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
+import com.Campeol.net.Pack;
 import com.Campeol.net.SslUtil;
+import com.Campeol.subgame.Match;
+import com.Campeol.subgame.Position;
 
 /**
  * Client
  */
 public class Client {
-  private ObjectOutputStream write;
+  private ObjectOutputStream writer;
   private ObjectInputStream reader;
 
-  public void start(int portNumber, Scanner sc) {
+  public Boolean start(int portNumber, String password) {
     try {
       SSLSocketFactory factory = SslUtil.getSocketFactory();
       SSLSocket socket = (SSLSocket) factory.createSocket(findIP(), portNumber);
-      write = new ObjectOutputStream(socket.getOutputStream());
+      writer = new ObjectOutputStream(socket.getOutputStream());
       reader = new ObjectInputStream(socket.getInputStream());
       try {
-        String password = (String) reader.readObject();
-        System.out.println(password);
+        if (validatePassword(writer, reader, password)) {
+          System.out.println("true");
+        }
+        return (Boolean) reader.readObject();
       } catch (ClassNotFoundException e) {
-        e.printStackTrace();
+        throw new RuntimeException(e);
       }
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -69,6 +73,41 @@ public class Client {
         e.printStackTrace();
       }
     } catch (SocketException ex) {
+      ex.printStackTrace();
+    }
+    return null;
+  }
+
+  private boolean validatePassword(ObjectOutputStream writer, ObjectInputStream reader, String password)
+      throws IOException, ClassNotFoundException {
+    writer.writeObject(password);
+    String check = (String) reader.readObject();
+    String pass = "pass";
+    if (check != null && check.equals(pass)) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  public void send(Match match, Position pos) {
+    try {
+      writer.writeObject(match);
+      writer.writeObject(pos);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+  }
+
+  public Pack receive() {
+    try {
+      Match match = (Match) reader.readObject();
+      Position pos = (Position) reader.readObject();
+      Pack pack = new Pack(match, pos);
+      return pack;
+    } catch (IOException e) {
+      e.printStackTrace();
+    } catch (ClassNotFoundException ex) {
       ex.printStackTrace();
     }
     return null;
