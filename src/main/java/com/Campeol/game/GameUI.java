@@ -34,7 +34,33 @@ public class GameUI implements AutoCloseable {
 
   }
 
-  public char startGame() throws IOException, InterruptedException {
+  public Integer Menu() throws IOException {
+    screen.clear();
+    txt.putString(0, 0, "1. Multiplayer.");
+    txt.putString(0, 1, "2. Local.");
+    Integer i = Integer.parseInt(screen.readInput().toString());
+    if (i == 1) {
+      return 1;
+    } else {
+      return 2;
+    }
+  }
+
+  public Integer OnlineMenu() throws IOException {
+    screen.clear();
+    txt.putString(0, 0, "1. Create game.");
+    txt.putString(0, 1, "2. Get in the game.");
+    Integer i = Integer.parseInt(screen.readInput().toString());
+    if (i == 1) {
+      screen.clear();
+      return 1;
+    } else {
+      screen.clear();
+      return 2;
+    }
+  }
+
+  public char startLocalCustomGame() throws IOException, InterruptedException {
     screen.clear();
     char kp;
     do {
@@ -262,6 +288,10 @@ public class GameUI implements AutoCloseable {
     if (gb.getMatchFinished()) {
       endMatch(match);
     }
+  }
+
+  public void changeTurn() {
+    gb.changeTurn();
   }
 
   public Match changeMatch(Position pos) throws IOException, InterruptedException {
