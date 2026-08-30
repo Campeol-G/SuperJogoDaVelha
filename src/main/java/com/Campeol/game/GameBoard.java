@@ -14,8 +14,8 @@ public class GameBoard {
   private static final int COL_OFFSET = 2;
   private static final int ROW_OFFSET = 1;
 
-  private Match[][] gamePlaces;
-  private Player p1, p2, currentPlayer, winner;
+  protected Match[][] gamePlaces;
+  protected Player p1, p2, currentPlayer, winner;
   private Integer turn;
   private MatchStatus status;
   private boolean matchFinished;
@@ -44,14 +44,13 @@ public class GameBoard {
     } else if (draw()) {
       status = MatchStatus.DRAW;
     }
-    changeTurn();
   }
 
   public boolean getMatchFinished() {
     return matchFinished;
   }
 
-  private void changeTurn() {
+  public void changeTurn() {
     currentPlayer = currentPlayer == p1 ? p2 : p1;
     turn++;
   }
