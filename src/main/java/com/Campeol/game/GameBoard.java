@@ -1,5 +1,7 @@
 package com.Campeol.game;
 
+import java.util.Random;
+
 import com.Campeol.MatchStatus;
 import com.Campeol.subgame.Match;
 import com.Campeol.subgame.Piece;
@@ -32,6 +34,26 @@ public class GameBoard {
     turn = 1;
   }
 
+  public void startPlayer() {
+    Random random = new Random();
+    boolean sorteio = random.nextBoolean();
+
+    if (sorteio) {
+      p1 = new Player(new Piece('X'));
+      p2 = new Player(new Piece('O'));
+    } else {
+      p1 = new Player(new Piece('O'));
+      p2 = new Player(new Piece('X'));
+    }
+    currentPlayer = p1;
+    turn = 1;
+  }
+
+  public void getPlayers(Player p1, Player p2) {
+    this.p1 = p1;
+    this.p2 = p2;
+  }
+
   public void makeMove(Match match, Position position) {
     matchFinished = false;
     match.makeMove(currentPlayer, position);
@@ -59,7 +81,7 @@ public class GameBoard {
     gamePlaces = new Match[BOARD_COUNT][BOARD_COUNT];
     for (int i = 0; i < gamePlaces.length; i++) {
       for (int j = 0; j < gamePlaces[i].length; j++) {
-        gamePlaces[i][j] = new Match(i * ROW_SPACING + ROW_OFFSET, j * COL_SPACING + COL_OFFSET);
+        gamePlaces[i][j] = new Match(i * ROW_SPACING + ROW_OFFSET, j * COL_SPACING + COL_OFFSET, i, j);
       }
     }
   }
@@ -173,6 +195,34 @@ public class GameBoard {
 
   public Match getGamePlaces(int i, int j) {
     return gamePlaces[i][j];
+  }
+
+  public void setGamePlaces(int i, int j, Match match) {
+    gamePlaces[i][j] = match;
+  }
+
+  public void updateGlobalStatus() {
+    if (gameOver()) {
+      status = MatchStatus.VICTORY;
+      winner = findGlobalWinner();
+    } else if (draw()) {
+      status = MatchStatus.DRAW;
+    }
+  }
+
+  private Player findGlobalWinner() {
+    for (int i = 0; i < BOARD_COUNT; i++) {
+      for (int j = 0; j < BOARD_COUNT; j++) {
+        if (gamePlaces[i][j].getMatchStatus() == MatchStatus.VICTORY) {
+          Piece winnerPiece = gamePlaces[i][j].getWinner().getPiece();
+          if (p1 != null && p1.getPiece().equals(winnerPiece))
+            return p1;
+          if (p2 != null && p2.getPiece().equals(winnerPiece))
+            return p2;
+        }
+      }
+    }
+    return null;
   }
 
   public void setGameStatus(MatchStatus status) {

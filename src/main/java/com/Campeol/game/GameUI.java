@@ -1,6 +1,7 @@
 package com.Campeol.game;
 
 import java.io.IOException;
+import java.util.Scanner;
 
 import com.Campeol.MatchStatus;
 import com.Campeol.subgame.Match;
@@ -34,28 +35,29 @@ public class GameUI implements AutoCloseable {
 
   }
 
-  public Integer Menu() throws IOException {
+  public Integer Menu(Scanner sc) throws IOException {
     screen.clear();
     txt.putString(0, 0, "1. Multiplayer.");
     txt.putString(0, 1, "2. Local.");
-    Integer i = Integer.parseInt(screen.readInput().toString());
-    if (i == 1) {
+    screen.refresh();
+    String i = sc.nextLine();
+    if (i.equals("1")) {
       return 1;
     } else {
       return 2;
     }
   }
 
-  public Integer OnlineMenu() throws IOException {
+  public Integer OnlineMenu(Scanner sc) throws IOException {
     screen.clear();
     txt.putString(0, 0, "1. Create game.");
     txt.putString(0, 1, "2. Get in the game.");
-    Integer i = Integer.parseInt(screen.readInput().toString());
-    if (i == 1) {
-      screen.clear();
+    screen.refresh();
+    screen.clear();
+    String i = sc.nextLine();
+    if (i.equals("1")) {
       return 1;
     } else {
-      screen.clear();
       return 2;
     }
   }
@@ -83,6 +85,10 @@ public class GameUI implements AutoCloseable {
 
   public void startPlayer(char XorO) {
     gb.startPlayer(XorO);
+  }
+
+  public void startPlayer() {
+    gb.startPlayer();
   }
 
   public void render() throws IOException, InterruptedException {
@@ -288,9 +294,17 @@ public class GameUI implements AutoCloseable {
     if (gb.getMatchFinished()) {
       endMatch(match);
     }
+    gb.changeTurn();
   }
 
-  public void changeTurn() {
+  public void receiveOpponentMove(Match receivedMatch) throws IOException, InterruptedException {
+    int gridRow = receivedMatch.getGridRow();
+    int gridCol = receivedMatch.getGridCol();
+    gb.setGamePlaces(gridRow, gridCol, receivedMatch);
+    if (receivedMatch.getMatchStatus() != MatchStatus.IN_PROGRESS) {
+      endMatch(receivedMatch);
+    }
+    gb.updateGlobalStatus();
     gb.changeTurn();
   }
 
