@@ -1,8 +1,9 @@
 package com.Campeol.subgame;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-public class Piece {
+public class Piece implements Serializable {
 
   private Position position;
   private char XorO;

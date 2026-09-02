@@ -1,10 +1,12 @@
 package com.Campeol.subgame;
 
+import java.io.Serializable;
+
 import com.Campeol.subgame.exception.SubGameException;
 import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.graphics.TextGraphics;
 
-public class Board {
+public class Board implements Serializable {
 
   private Integer row;
   private Integer column;

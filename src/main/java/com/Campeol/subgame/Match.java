@@ -1,26 +1,34 @@
 package com.Campeol.subgame;
 
+import java.io.Serializable;
+
 import com.Campeol.MatchStatus;
 import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.graphics.TextGraphics;
 
-public class Match {
+public class Match implements Serializable {
 
   private Board board;
   private Player winner;
   private MatchStatus status;
   private int rowPosition;
   private int columnPosition;
+  private int gridRow;
+  private int gridCol;
+  private Position lastMove;
 
-  public Match(int row, int column) {
+  public Match(int row, int column, int gridRow, int gridCol) {
     board = new Board(3, 3);
     status = MatchStatus.IN_PROGRESS;
     this.rowPosition = row;
     this.columnPosition = column;
+    this.gridRow = gridRow;
+    this.gridCol = gridCol;
   }
 
   public void makeMove(Player player, Position position) {
     board.placePiece(player, position);
+    this.lastMove = position;
     if (board.testEndGame()) {
       status = MatchStatus.VICTORY;
       winner = player;
@@ -62,8 +70,24 @@ public class Match {
     return columnPosition;
   }
 
+  public int getGridRow() {
+    return gridRow;
+  }
+
+  public int getGridCol() {
+    return gridCol;
+  }
+
   public Player getWinner() {
     return winner;
+  }
+
+  public Position getLastMove() {
+    return lastMove;
+  }
+
+  public void setLastMove(Position lastMove) {
+    this.lastMove = lastMove;
   }
 
 }

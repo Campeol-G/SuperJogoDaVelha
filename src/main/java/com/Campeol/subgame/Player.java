@@ -1,6 +1,8 @@
 package com.Campeol.subgame;
 
-public class Player {
+import java.io.Serializable;
+
+public class Player implements Serializable {
 
   private Piece piece;
 
