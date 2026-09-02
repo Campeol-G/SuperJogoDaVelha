@@ -12,10 +12,9 @@ import java.net.SocketTimeoutException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
-import com.Campeol.net.Pack;
+import com.Campeol.net.NetException;
 import com.Campeol.net.SslUtil;
 import com.Campeol.subgame.Match;
-import com.Campeol.subgame.Position;
 
 /**
  * Client
@@ -30,9 +29,10 @@ public class Client {
       SSLSocket socket = (SSLSocket) factory.createSocket(findIP(), portNumber);
       writer = new ObjectOutputStream(socket.getOutputStream());
       reader = new ObjectInputStream(socket.getInputStream());
+
       try {
-        if (validatePassword(writer, reader, password)) {
-          System.out.println("true");
+        if (!validatePassword(writer, reader, password)) {
+          throw new NetException("Invalid Password");
         }
         return (Boolean) reader.readObject();
       } catch (ClassNotFoundException e) {
@@ -90,21 +90,17 @@ public class Client {
     }
   }
 
-  public void send(Match match, Position pos) {
+  public void send(Match match) {
     try {
       writer.writeObject(match);
-      writer.writeObject(pos);
     } catch (IOException e) {
       e.printStackTrace();
     }
   }
 
-  public Pack receive() {
+  public Match receive() {
     try {
-      Match match = (Match) reader.readObject();
-      Position pos = (Position) reader.readObject();
-      Pack pack = new Pack(match, pos);
-      return pack;
+      return (Match) reader.readObject();
     } catch (IOException e) {
       e.printStackTrace();
     } catch (ClassNotFoundException ex) {

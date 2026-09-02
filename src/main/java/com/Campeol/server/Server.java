@@ -13,10 +13,8 @@ import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
 
 import com.Campeol.net.NetException;
-import com.Campeol.net.Pack;
 import com.Campeol.net.SslUtil;
 import com.Campeol.subgame.Match;
-import com.Campeol.subgame.Position;
 
 public class Server {
   private ObjectOutputStream writer;
@@ -31,7 +29,7 @@ public class Server {
       SSLSocket socket = (SSLSocket) server.accept();
       writer = new ObjectOutputStream(socket.getOutputStream());
       reader = new ObjectInputStream(socket.getInputStream());
-      System.out.println("Connected");
+
       try {
         Random random = new Random();
         Boolean sorteio = random.nextBoolean();
@@ -51,7 +49,7 @@ public class Server {
     } catch (IOException e) {
       e.printStackTrace();
     }
-    return null;
+    return false;
   }
 
   public void sendUPDPacket() {
@@ -97,25 +95,22 @@ public class Server {
       writer.writeObject("pass");
       return true;
     } else {
+      writer.writeObject("fail");
       return false;
     }
   }
 
-  public void send(Match match, Position pos) {
+  public void send(Match match) {
     try {
       writer.writeObject(match);
-      writer.writeObject(pos);
     } catch (IOException e) {
       e.printStackTrace();
     }
   }
 
-  public Pack receive() {
+  public Match receive() {
     try {
-      Match match = (Match) reader.readObject();
-      Position pos = (Position) reader.readObject();
-      Pack pack = new Pack(match, pos);
-      return pack;
+      return (Match) reader.readObject();
     } catch (IOException e) {
       e.printStackTrace();
     } catch (ClassNotFoundException ex) {
