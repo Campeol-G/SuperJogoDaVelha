@@ -56,4 +56,13 @@ public class OnlineGame {
     return client.receive();
   }
 
+  public void close() {
+    if (server != null) {
+      server.close();
+    }
+    if (client != null) {
+      client.close();
+    }
+  }
+
 }
