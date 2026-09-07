@@ -204,22 +204,47 @@ public class GameBoard {
   public void updateGlobalStatus() {
     if (gameOver()) {
       status = MatchStatus.VICTORY;
-      winner = findGlobalWinner();
+      winner = getGameWinner();
     } else if (draw()) {
       status = MatchStatus.DRAW;
     }
   }
 
-  private Player findGlobalWinner() {
-    for (int i = 0; i < BOARD_COUNT; i++) {
-      for (int j = 0; j < BOARD_COUNT; j++) {
-        if (gamePlaces[i][j].getMatchStatus() == MatchStatus.VICTORY) {
-          Piece winnerPiece = gamePlaces[i][j].getWinner().getPiece();
-          if (p1 != null && p1.getPiece().equals(winnerPiece))
-            return p1;
-          if (p2 != null && p2.getPiece().equals(winnerPiece))
-            return p2;
-        }
+  public Player getGameWinner() {
+    int[][] wins = {
+        {0, 0, 0, 1, 0, 2},
+        {1, 0, 1, 1, 1, 2},
+        {2, 0, 2, 1, 2, 2},
+        {0, 0, 1, 0, 2, 0},
+        {0, 1, 1, 1, 2, 1},
+        {0, 2, 1, 2, 2, 2},
+        {0, 0, 1, 1, 2, 2},
+        {0, 2, 1, 1, 2, 0}
+    };
+    for (int[] w : wins) {
+      Player lineWinner = checkLineWinner(w[0], w[1], w[2], w[3], w[4], w[5]);
+      if (lineWinner != null) {
+        return lineWinner;
+      }
+    }
+    return null;
+  }
+
+  private Player checkLineWinner(int r1, int c1, int r2, int c2, int r3, int c3) {
+    Match m1 = gamePlaces[r1][c1];
+    Match m2 = gamePlaces[r2][c2];
+    Match m3 = gamePlaces[r3][c3];
+
+    if (m1.getMatchStatus() == MatchStatus.VICTORY &&
+        m2.getMatchStatus() == MatchStatus.VICTORY &&
+        m3.getMatchStatus() == MatchStatus.VICTORY) {
+      Piece winnerPiece = m1.getWinner().getPiece();
+      if (winnerPiece.equals(m2.getWinner().getPiece()) &&
+          winnerPiece.equals(m3.getWinner().getPiece())) {
+        if (p1 != null && p1.getPiece().equals(winnerPiece))
+          return p1;
+        if (p2 != null && p2.getPiece().equals(winnerPiece))
+          return p2;
       }
     }
     return null;
