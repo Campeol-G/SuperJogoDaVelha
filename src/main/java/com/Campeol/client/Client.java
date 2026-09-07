@@ -26,9 +26,13 @@ public class Client {
 
   public Boolean start(int portNumber, String password) {
     try {
+      InetAddress serverAddress = findIP();
+      if (serverAddress == null) {
+        throw new NetException("Servidor nao encontrado");
+      }
       SSLSocketFactory factory = SslUtil.getSocketFactory();
-      SSLSocket socket = (SSLSocket) factory.createSocket(findIP(), portNumber);
-      socket.setSoTimeout(120000);
+      SSLSocket socket = (SSLSocket) factory.createSocket(serverAddress, portNumber);
+      socket.setSoTimeout(500);
       writer = new ObjectOutputStream(socket.getOutputStream());
       writer.flush();
       reader = new ObjectInputStream(socket.getInputStream());
@@ -54,6 +58,8 @@ public class Client {
 
   private InetAddress findIP() {
     int portServer = 5000;
+    int maxAttempts = 12;
+    int attempts = 0;
     try (DatagramSocket socket = new DatagramSocket();) {
       socket.setSoTimeout(5000);
       byte[] buffer = new byte[1024];
@@ -61,7 +67,7 @@ public class Client {
         byte[] mensagem = "DISCOVER_SERVER".getBytes();
         InetAddress broadcastAddress = InetAddress.getByName("255.255.255.255");
         DatagramPacket conection = new DatagramPacket(mensagem, mensagem.length, broadcastAddress, portServer);
-        while (true) {
+        while (attempts < maxAttempts) {
           socket.send(conection);
 
           DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
@@ -75,9 +81,11 @@ public class Client {
               return packet.getAddress();
             }
           } catch (SocketTimeoutException exp) {
-            System.out.println("Sem resposta do servidor, tentando novamente...");
+            System.out.println("Sem resposta do servidor, tentando novamente... (" + (attempts + 1) + "/" + maxAttempts + ")");
           }
+          attempts++;
         }
+        System.out.println("Servidor nao encontrado apos " + maxAttempts + " tentativas.");
       } catch (IOException e) {
         e.printStackTrace();
       }
@@ -113,7 +121,6 @@ public class Client {
     try {
       return (Match) reader.readObject();
     } catch (java.net.SocketTimeoutException e) {
-      System.out.println("Timeout aguardando jogada do servidor.");
       return null;
     } catch (java.io.EOFException e) {
       return null;
