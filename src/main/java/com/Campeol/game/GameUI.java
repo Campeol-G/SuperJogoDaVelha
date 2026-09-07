@@ -53,7 +53,6 @@ public class GameUI implements AutoCloseable {
     txt.putString(0, 0, "1. Create game.");
     txt.putString(0, 1, "2. Get in the game.");
     screen.refresh();
-    screen.clear();
     String i = sc.nextLine();
     if (i.equals("1")) {
       return 1;
@@ -93,6 +92,7 @@ public class GameUI implements AutoCloseable {
 
   public void render() throws IOException, InterruptedException {
     waitForEnoughSize();
+    screen.clear();
     gb.renderAllGames(txt);
     screen.refresh();
   }
@@ -294,6 +294,9 @@ public class GameUI implements AutoCloseable {
     if (gb.getMatchFinished()) {
       endMatch(match);
     }
+  }
+
+  public void changeTurn() {
     gb.changeTurn();
   }
 
@@ -309,6 +312,9 @@ public class GameUI implements AutoCloseable {
   }
 
   public Match changeMatch(Position pos) throws IOException, InterruptedException {
+    if (pos == null) {
+      return bigMove();
+    }
     if (gb.getGamePlaces(pos.getRow(), pos.getColumn()).getMatchStatus() != MatchStatus.IN_PROGRESS) {
       return bigMove();
     } else {
@@ -350,7 +356,9 @@ public class GameUI implements AutoCloseable {
     }
     if (gb.getStatus() == MatchStatus.VICTORY) {
       txt.putString(18, 6, gb.getStatus().toString());
-      txt.putString(18, 7, "BY:" + gb.getWinner().getPiece());
+      if (gb.getWinner() != null) {
+        txt.putString(18, 7, "BY:" + gb.getWinner().getPiece());
+      }
     } else if (gb.getStatus() == MatchStatus.DRAW) {
       txt.putString(18, 6, gb.getStatus().toString());
     }
@@ -375,8 +383,16 @@ public class GameUI implements AutoCloseable {
     return gb.getGamePlaces(i, j);
   }
 
+  public com.googlecode.lanterna.input.KeyStroke pollInput() throws IOException {
+    return screen.pollInput();
+  }
+
   public MatchStatus getStatus() {
     return gb.getStatus();
+  }
+
+  public void setGameStatus(MatchStatus status) {
+    gb.setGameStatus(status);
   }
 
   private boolean isSizeOk() throws IOException {
