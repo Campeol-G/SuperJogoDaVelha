@@ -26,9 +26,11 @@ public class Server {
       SSLServerSocketFactory factory = SslUtil.getServerSocketFactory();
       SSLServerSocket server = (SSLServerSocket) factory.createServerSocket(portNumber);
       server.setNeedClientAuth(false);
-      sendUPDPacket();
+      Thread broadcastThread = new Thread(this::sendUPDPacket);
+      broadcastThread.setDaemon(true);
+      broadcastThread.start();
       SSLSocket socket = (SSLSocket) server.accept();
-      socket.setSoTimeout(120000);
+      socket.setSoTimeout(500);
       writer = new ObjectOutputStream(socket.getOutputStream());
       writer.flush();
       reader = new ObjectInputStream(socket.getInputStream());
@@ -68,27 +70,27 @@ public class Server {
     try (DatagramSocket socket = new DatagramSocket(portServer);) {
       byte[] buffer = new byte[1024];
       try {
-        while (true) {
+        long endTime = System.currentTimeMillis() + 60000;
+        while (System.currentTimeMillis() < endTime) {
           DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-
-          socket.receive(packet);
-
-          String mensagem = new String(
-              packet.getData(),
-              0,
-              packet.getLength());
-
-          if (mensagem.equals("DISCOVER_SERVER")) {
-            byte[] resposta = "SERVER_HERE".getBytes();
-
-            DatagramPacket response = new DatagramPacket(
-                resposta,
-                resposta.length,
-                packet.getAddress(),
-                packet.getPort());
-
-            socket.send(response);
-            break;
+          socket.setSoTimeout(1000);
+          try {
+            socket.receive(packet);
+            String mensagem = new String(
+                packet.getData(),
+                0,
+                packet.getLength());
+            if (mensagem.equals("DISCOVER_SERVER")) {
+              byte[] resposta = "SERVER_HERE".getBytes();
+              DatagramPacket response = new DatagramPacket(
+                  resposta,
+                  resposta.length,
+                  packet.getAddress(),
+                  packet.getPort());
+              socket.send(response);
+            }
+          } catch (java.net.SocketTimeoutException timeout) {
+            // continua tentando ate o tempo acabar
           }
         }
       } catch (IOException e) {
@@ -125,7 +127,6 @@ public class Server {
     try {
       return (Match) reader.readObject();
     } catch (java.net.SocketTimeoutException e) {
-      System.out.println("Timeout aguardando jogada do cliente.");
       return null;
     } catch (java.io.EOFException e) {
       return null;
