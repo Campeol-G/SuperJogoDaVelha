@@ -28,7 +28,9 @@ public class Server {
       server.setNeedClientAuth(false);
       sendUPDPacket();
       SSLSocket socket = (SSLSocket) server.accept();
+      socket.setSoTimeout(120000);
       writer = new ObjectOutputStream(socket.getOutputStream());
+      writer.flush();
       reader = new ObjectInputStream(socket.getInputStream());
 
       try {
@@ -112,6 +114,8 @@ public class Server {
   public void send(Match match) {
     try {
       writer.writeObject(match);
+      writer.reset();
+      writer.flush();
     } catch (IOException e) {
       e.printStackTrace();
     }
@@ -120,12 +124,30 @@ public class Server {
   public Match receive() {
     try {
       return (Match) reader.readObject();
+    } catch (java.net.SocketTimeoutException e) {
+      System.out.println("Timeout aguardando jogada do cliente.");
+      return null;
+    } catch (java.io.EOFException e) {
+      return null;
     } catch (IOException e) {
       e.printStackTrace();
     } catch (ClassNotFoundException ex) {
       ex.printStackTrace();
     }
     return null;
+  }
+
+  public void close() {
+    try {
+      if (reader != null)
+        reader.close();
+    } catch (IOException e) {
+    }
+    try {
+      if (writer != null)
+        writer.close();
+    } catch (IOException e) {
+    }
   }
 
 }
