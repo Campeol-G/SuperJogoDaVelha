@@ -22,6 +22,7 @@ import com.Campeol.subgame.Match;
 public class Client {
   private ObjectOutputStream writer;
   private ObjectInputStream reader;
+  private char clientPiece;
 
   public Boolean start(int portNumber, String password) {
     try {
@@ -34,13 +35,19 @@ public class Client {
         if (!validatePassword(writer, reader, password)) {
           throw new NetException("Invalid Password");
         }
-        return (Boolean) reader.readObject();
+        Boolean sorteio = (Boolean) reader.readObject();
+        clientPiece = (Character) reader.readObject();
+        return sorteio;
       } catch (ClassNotFoundException e) {
         throw new RuntimeException(e);
       }
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  public char getClientPiece() {
+    return clientPiece;
   }
 
   private InetAddress findIP() {

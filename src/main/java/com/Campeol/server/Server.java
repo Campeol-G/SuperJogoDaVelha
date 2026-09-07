@@ -19,6 +19,7 @@ import com.Campeol.subgame.Match;
 public class Server {
   private ObjectOutputStream writer;
   private ObjectInputStream reader;
+  private char serverPiece;
 
   public Boolean start(int portNumber, String password) {
     try {
@@ -37,10 +38,14 @@ public class Server {
           throw new NetException("Wrong password");
         }
         if (sorteio) {
+          serverPiece = 'X';
           writer.writeObject(sorteio);
+          writer.writeObject('X');
           return true;
         } else {
+          serverPiece = 'O';
           writer.writeObject(sorteio);
+          writer.writeObject('O');
           return false;
         }
       } catch (ClassNotFoundException e) {
@@ -50,6 +55,10 @@ public class Server {
       e.printStackTrace();
     }
     return false;
+  }
+
+  public char getServerPiece() {
+    return serverPiece;
   }
 
   public void sendUPDPacket() {

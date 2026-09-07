@@ -25,6 +25,10 @@ public class OnlineGame {
     return server.start(portNumber, password);
   }
 
+  public char getServerPiece() {
+    return server.getServerPiece();
+  }
+
   public void getSendServer(Match match) {
     server.send(match);
   }
@@ -38,6 +42,10 @@ public class OnlineGame {
     String password = sc.nextLine();
     client = new Client();
     return client.start(portNumber, password);
+  }
+
+  public char getClientPiece() {
+    return client.getClientPiece();
   }
 
   public void getSendClient(Match match) {
