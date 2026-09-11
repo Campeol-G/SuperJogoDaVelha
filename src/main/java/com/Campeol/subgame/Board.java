@@ -3,6 +3,8 @@ package com.Campeol.subgame;
 import java.io.Serializable;
 
 import com.Campeol.subgame.exception.SubGameException;
+import com.Campeol.ui.Theme;
+import com.googlecode.lanterna.SGR;
 import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.graphics.TextGraphics;
 
@@ -27,18 +29,69 @@ public class Board implements Serializable {
   }
 
   public void render(TextGraphics txt, int offsetRow, int offsetColumn, TextColor highlight) {
-    txt.setBackgroundColor(highlight);
+    render(txt, offsetRow, offsetColumn, -1, -1, highlight);
+  }
+
+  /**
+   * Render com highlight SOMENTE na casa (3x1), sem pintar o subgame.
+   * selRow/selCol = -1 significa sem seleção. Divisórias │───┼ preservadas.
+   */
+  public void render(TextGraphics txt, int offsetRow, int offsetColumn, int selRow, int selCol,
+      TextColor macroBg) {
     for (int i = 0; i < row; i++) {
       for (int j = 0; j < column; j++) {
-        String sep = (j < column - 1) ? "|" : "";
         Piece piece = boardPlace[i][j];
         String content = piece != null ? piece.toString() : " ";
-        txt.putString(j * 4 + offsetColumn, i * 2 + offsetRow, " " + content + " " + sep);
+        boolean selected = (i == selRow && j == selCol);
+        int x = j * 4 + offsetColumn;
+        int y = i * 2 + offsetRow;
+
+        // conteúdo da casa (3 cols: " X ")
+        txt.clearModifiers();
+        txt.setBackgroundColor(null);
+        txt.setForegroundColor(null);
+        if (selected) {
+          txt.setBackgroundColor(Theme.HOVER_BG);
+          txt.setForegroundColor(Theme.HOVER_FG);
+          txt.enableModifiers(SGR.BOLD);
+        } else if (piece != null) {
+          if (piece.getXorO() == 'X') {
+            txt.setForegroundColor(Theme.X_FG);
+            txt.enableModifiers(SGR.BOLD);
+          } else {
+            txt.setForegroundColor(Theme.O_FG);
+          }
+        } else {
+          txt.setForegroundColor(Theme.DIM_FG);
+        }
+        txt.putString(x, y, " " + content + " ");
+        txt.clearModifiers();
+        txt.setBackgroundColor(null);
+        txt.setForegroundColor(null);
+        // separador vertical SEMPRE dim, nunca com highlight (preserva divisória)
+        txt.setForegroundColor(Theme.DIM_FG);
+        String sep = (j < column - 1) ? "│" : "";
+        if (!sep.isEmpty()) {
+          txt.putString(x + 3, y, sep);
+        }
+        txt.clearModifiers();
+        txt.setBackgroundColor(null);
+        txt.setForegroundColor(null);
       }
-      String sep = (i < row - 1) ? "---" + "+---".repeat(column - 2) + "+---" : "";
-      txt.putString(0 + offsetColumn, i * 2 + 1 + offsetRow, sep);
+      // separador horizontal SEMPRE dim
+      txt.setForegroundColor(Theme.DIM_FG);
+      txt.setBackgroundColor(null);
+      String sep = (i < row - 1) ? "───┼───┼───" : "";
+      if (!sep.isEmpty()) {
+        txt.putString(0 + offsetColumn, i * 2 + 1 + offsetRow, sep);
+      }
+      txt.clearModifiers();
+      txt.setBackgroundColor(null);
+      txt.setForegroundColor(null);
     }
+    txt.clearModifiers();
     txt.setBackgroundColor(null);
+    txt.setForegroundColor(null);
   }
 
   public void clearBoard(TextGraphics txt, int offsetRow, int offsetColumn) {
@@ -54,7 +107,7 @@ public class Board implements Serializable {
 
   public void placePiece(Player player, Position position) {
     if (thereIsAPiece(position)) {
-      throw new SubGameException("There's already a piece there");
+      throw new SubGameException(com.Campeol.ui.I18n.t("occupied"));
     }
     boardPlace[position.getRow()][position.getColumn()] = player.getPiece();
   }
@@ -72,7 +125,7 @@ public class Board implements Serializable {
 
   public boolean thereIsAPiece(Position position) {
     if (!positionExist(position)) {
-      throw new SubGameException("this is not a possible position");
+      throw new SubGameException(com.Campeol.ui.I18n.t("invalid.pos"));
     }
     return boardPlace[position.getRow()][position.getColumn()] != null;
   }
