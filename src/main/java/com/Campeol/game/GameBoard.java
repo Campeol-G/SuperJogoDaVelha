@@ -7,6 +7,11 @@ import com.Campeol.subgame.Match;
 import com.Campeol.subgame.Piece;
 import com.Campeol.subgame.Player;
 import com.Campeol.subgame.Position;
+import com.Campeol.ui.GameClock;
+import com.Campeol.ui.I18n;
+import com.Campeol.ui.Theme;
+import com.googlecode.lanterna.SGR;
+import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.graphics.TextGraphics;
 
 public class GameBoard {
@@ -21,6 +26,8 @@ public class GameBoard {
   private Integer turn;
   private MatchStatus status;
   private boolean matchFinished;
+  private final GameClock clock = new GameClock();
+  private boolean starterIsP1 = true;
 
   public GameBoard() {
     startAllGames();
@@ -31,7 +38,10 @@ public class GameBoard {
     p1 = new Player(new Piece(XorO));
     p2 = new Player(new Piece(XorO == 'X' ? 'O' : 'X'));
     currentPlayer = p1;
+    starterIsP1 = true;
     turn = 1;
+    clock.startMatch();
+    clock.startTurn(currentPlayer.getPiece().getXorO());
   }
 
   public void startPlayer() {
@@ -46,7 +56,27 @@ public class GameBoard {
       p2 = new Player(new Piece('X'));
     }
     currentPlayer = p1;
+    starterIsP1 = true;
     turn = 1;
+    clock.startMatch();
+    clock.startTurn(currentPlayer.getPiece().getXorO());
+  }
+
+  /** Nova rodada alternando quem começa (revanche). Mantém peças, troca o titular. */
+  public void newRoundAlternateStarter() {
+    startAllGames();
+    status = MatchStatus.IN_PROGRESS;
+    matchFinished = false;
+    winner = null;
+    turn = 1;
+    starterIsP1 = !starterIsP1;
+    if (p1 == null || p2 == null) {
+      startPlayer();
+      return;
+    }
+    currentPlayer = starterIsP1 ? p1 : p2;
+    clock.startMatch();
+    clock.startTurn(currentPlayer.getPiece().getXorO());
   }
 
   public void getPlayers(Player p1, Player p2) {
@@ -63,8 +93,10 @@ public class GameBoard {
     if (gameOver()) {
       winner = currentPlayer;
       status = MatchStatus.VICTORY;
+      clock.stop();
     } else if (draw()) {
       status = MatchStatus.DRAW;
+      clock.stop();
     }
   }
 
@@ -73,8 +105,12 @@ public class GameBoard {
   }
 
   public void changeTurn() {
+    clock.stopTurn();
     currentPlayer = currentPlayer == p1 ? p2 : p1;
     turn++;
+    if (currentPlayer != null) {
+      clock.startTurn(currentPlayer.getPiece().getXorO());
+    }
   }
 
   public void startAllGames() {
@@ -87,64 +123,189 @@ public class GameBoard {
   }
 
   public void divisors(TextGraphics txt) {
+    divisors(txt, 0, 0, -1, -1, false);
+  }
+
+  /**
+   * Moldura com origem (centralização) + highlight do macro selecionado.
+   * activeR/activeC = macro sob o cursor em bigMove (-1 = nenhum).
+   * forced = true quando o destino é forçado (só destaca), false = escolha livre.
+   */
+  private void drawTitle(TextGraphics txt, int ox, int oy, int width) {
+    String rawTitle = I18n.getLang().equals("pt") ? I18n.t("title.pt") : I18n.t("title");
+    String title = " " + rawTitle + " ";
+    // width é o delta (42); a borda tem width+1 células (0..width). Centraliza nisso.
+    int tx = ox + Math.max(0, (width + 1 - title.length()) / 2);
+    txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
+    txt.enableModifiers(SGR.BOLD);
+    txt.putString(tx, oy + 0, title);
+    txt.clearModifiers();
+    txt.setBackgroundColor(null);
+    txt.setForegroundColor(null);
+  }
+
+  public void divisors(TextGraphics txt, int ox, int oy, int activeR, int activeC, boolean forced) {
     int width = BOARD_COUNT * COL_SPACING;
     int height = BOARD_COUNT * ROW_SPACING;
+
+    txt.clearModifiers();
+    txt.setBackgroundColor(null);
+    txt.setForegroundColor(Theme.DIM_FG);
 
     // internal vertical dividers
     for (int c = 1; c < BOARD_COUNT; c++) {
       for (int i = 0; i <= height; i++) {
-        txt.putString(c * COL_SPACING, i, "║");
+        txt.putString(ox + c * COL_SPACING, oy + i, "║");
       }
     }
 
     // internal horizontal dividers
     for (int r = 1; r < BOARD_COUNT; r++) {
       for (int i = 0; i <= width; i++) {
-        txt.putString(i, r * ROW_SPACING, "═");
+        txt.putString(ox + i, oy + r * ROW_SPACING, "═");
       }
     }
 
     // internal connectors
     for (int r = 1; r < BOARD_COUNT; r++) {
       for (int c = 1; c < BOARD_COUNT; c++) {
-        txt.putString(c * COL_SPACING, r * ROW_SPACING, "╬");
+        txt.putString(ox + c * COL_SPACING, oy + r * ROW_SPACING, "╬");
       }
     }
 
     // external contour columns
     for (int i = 0; i <= height; i++) {
-      txt.putString(0, i, "║");
-      txt.putString(width, i, "║");
+      txt.putString(ox + 0, oy + i, "║");
+      txt.putString(ox + width, oy + i, "║");
     }
 
     // external contour rows
     for (int i = 0; i <= width; i++) {
-      txt.putString(i, 0, "═");
-      txt.putString(i, height, "═");
+      txt.putString(ox + i, oy + 0, "═");
+      txt.putString(ox + i, oy + height, "═");
     }
-    txt.putString(12, 0, " SUPER TIC-TAC-TOE ");
 
-    // external contour connectors
-    txt.putString(0, 0, "╔");
-    txt.putString(width, 0, "╗");
+    // external contour connectors (antes do título para não cortar letras)
+    txt.putString(ox + 0, oy + 0, "╔");
+    txt.putString(ox + width, oy + 0, "╗");
     for (int r = 1; r < BOARD_COUNT; r++) {
-      txt.putString(0, r * ROW_SPACING, "╠");
-      txt.putString(width, r * ROW_SPACING, "╣");
+      txt.putString(ox + 0, oy + r * ROW_SPACING, "╠");
+      txt.putString(ox + width, oy + r * ROW_SPACING, "╣");
     }
-    txt.putString(0, height, "╚");
-    txt.putString(width, height, "╝");
+    txt.putString(ox + 0, oy + height, "╚");
+    txt.putString(ox + width, oy + height, "╝");
     for (int c = 1; c < BOARD_COUNT; c++) {
-      txt.putString(c * COL_SPACING, height, "╩");
+      txt.putString(ox + c * COL_SPACING, oy + height, "╩");
+    }
+    // ╦ do topo só onde o título NÃO passa (evita cortar U/H)
+    String rawTitlePre = I18n.getLang().equals("pt") ? I18n.t("title.pt") : I18n.t("title");
+    String titlePre = " " + rawTitlePre + " ";
+    int txPre = ox + Math.max(0, (width + 1 - titlePre.length()) / 2);
+    int titleEnd = txPre + titlePre.length();
+    for (int c = 1; c < BOARD_COUNT; c++) {
+      int jx = ox + c * COL_SPACING;
+      if (jx >= txPre && jx < titleEnd) {
+        continue;
+      }
+      txt.putString(jx, oy + 0, "╦");
+    }
+    txt.setForegroundColor(Theme.DIM_FG);
+    drawTitle(txt, ox, oy, width);
+
+    // highlight do macro ativo: moldura invertida ao redor do macro 14x6
+    if (activeR >= 0 && activeC >= 0) {
+      int mx = ox + activeC * COL_SPACING;
+      int my = oy + activeR * ROW_SPACING;
+      int mw = COL_SPACING;
+      int mh = ROW_SPACING;
+      txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
+      if (forced) {
+        txt.enableModifiers(SGR.BOLD, SGR.UNDERLINE);
+      } else {
+        txt.enableModifiers(SGR.BOLD);
+      }
+      // topo / base do macro
+      for (int i = 1; i < mw; i++) {
+        // não sobrescreve conectores ╬/╦/╩, só reforça topo/base internos
+        if (mx + i == ox + 0 || mx + i == ox + width) continue;
+        // topo
+        if (my > oy || true) {
+          // usa ━ para destacar sem quebrar a grade
+          txt.putString(mx + i, my, "━");
+        }
+        txt.putString(mx + i, my + mh, "━");
+      }
+      // laterais do macro
+      for (int i = 1; i < mh; i++) {
+        txt.putString(mx, my + i, "┃");
+        txt.putString(mx + mw, my + i, "┃");
+      }
+      txt.putString(mx, my, forced ? "┏" : "╔");
+      txt.putString(mx + mw, my, forced ? "┓" : "╗");
+      txt.putString(mx, my + mh, "┗");
+      txt.putString(mx + mw, my + mh, "┛");
+      txt.clearModifiers();
+      txt.setBackgroundColor(null);
+      txt.setForegroundColor(null);
+      // redesenha título caso o highlight tenha coberto a borda superior
+      drawTitle(txt, ox, oy, width);
+    } else {
+      txt.clearModifiers();
+      txt.setBackgroundColor(null);
+      txt.setForegroundColor(null);
     }
   }
 
   public void renderAllGames(TextGraphics txt) {
+    renderAllGames(txt, 0, 0, -1, -1, null, -1, -1, null);
+  }
+
+  /**
+   * Render completo com origem + highlights.
+   * bigSelR/bigSelC: cursor do bigMove (escolha livre) → moldura externa.
+   * activeMatch + selCellR/selCellC: cursor do readInput → casa 3x1 + preview
+   *   do próximo macro forçado (selCell == destino do oponente).
+   * macroBg: ignorado (mantido por compat — não pinta mais o macro inteiro
+   *   para preservar as divisórias).
+   */
+  public void renderAllGames(TextGraphics txt, int ox, int oy, int bigSelR, int bigSelC,
+      Match activeMatch, int selCellR, int selCellC, TextColor macroBg) {
     for (int i = 0; i < gamePlaces.length; i++) {
       for (int j = 0; j < gamePlaces.length; j++) {
-        gamePlaces[i][j].render(txt, currentPlayer, null);
+        Match m = gamePlaces[i][j];
+        if (activeMatch != null && activeMatch.getGridRow() == i && activeMatch.getGridCol() == j) {
+          m.render(txt, currentPlayer, null, selCellR, selCellC, ox, oy);
+        } else {
+          m.render(txt, currentPlayer, null, -1, -1, ox, oy);
+        }
       }
     }
-    divisors(txt);
+    // moldura externa = próximo tabuleiro a ser jogado
+    int outerR = -1;
+    int outerC = -1;
+    boolean outerForced = false;
+    if (bigSelR >= 0 && bigSelC >= 0) {
+      outerR = bigSelR;
+      outerC = bigSelC;
+      outerForced = false;
+    } else if (activeMatch != null && selCellR >= 0 && selCellC >= 0
+        && selCellR < BOARD_COUNT && selCellC < BOARD_COUNT) {
+      Match target = gamePlaces[selCellR][selCellC];
+      if (target.getMatchStatus() == com.Campeol.MatchStatus.IN_PROGRESS) {
+        outerR = selCellR;
+        outerC = selCellC;
+        outerForced = true;
+      } else {
+        // destino finalizado → próxima jogada será livre, sem preview forçado
+        outerR = -1;
+        outerC = -1;
+      }
+    }
+    divisors(txt, ox, oy, outerR, outerC, outerForced);
+    // garante reset de estilo
+    txt.clearModifiers();
+    txt.setBackgroundColor(null);
+    txt.setForegroundColor(null);
   }
 
   public boolean gameOver() {
@@ -268,6 +429,18 @@ public class GameBoard {
 
   public Player getWinner() {
     return winner;
+  }
+
+  public GameClock getClock() {
+    return clock;
+  }
+
+  public Player getP1() {
+    return p1;
+  }
+
+  public Player getP2() {
+    return p2;
   }
 
 }
