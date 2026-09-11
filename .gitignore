@@ -3,7 +3,9 @@
 .classpath
 .project
 *.prefs
-*.p12
+# NOTA: os keystores .p12 de desenvolvimento SÃO versionados de propósito
+# (certificados autoassinados descartáveis só para jogo em LAN; a senha já
+# é pública no SslUtil). Não re-adicionar *.p12 aqui ou o release sai sem TLS.
 
 # Maven build output
 target/

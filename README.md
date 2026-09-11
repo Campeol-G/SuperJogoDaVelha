@@ -81,4 +81,6 @@ java -jar target/SuperJogoDavelha.jar
 
 O Maven gera um **fat JAR** (todas as dependências empacotadas) em `target/SuperJogoDavelha.jar`.
 
+> **Nota (desenvolvimento):** o modo online usa TLS com certificados autoassinados **descartáveis** (`src/main/resources/*.p12`, senha pública no `SslUtil`). Eles são versionados de propósito — sem eles no JAR, o online falha. Nunca reutilize esses certificados/senha fora deste projeto.
+
 > Os instaladores (`.deb` e `.dmg`) e a versão portátil do Windows (`.zip`) são gerados automaticamente pelo GitHub Actions para Linux, macOS e Windows a cada release.

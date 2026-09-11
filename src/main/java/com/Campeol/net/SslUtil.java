@@ -22,6 +22,20 @@ public final class SslUtil {
   private static final String SERVER_KEYSTORE = "/server-keystore.p12";
   private static final String CLIENT_TRUSTSTORE = "/client-truststore.p12";
 
+  /**
+   * Monta o erro com a causa raiz na mensagem (o rodapé do jogo mostra só
+   * getMessage(); sem isso a causa real — ex. keystore ausente no jar —
+   * ficava invisível).
+   */
+  private static RuntimeException fail(String what, Exception e) {
+    Throwable root = e;
+    while (root.getCause() != null) {
+      root = root.getCause();
+    }
+    String detail = root.getMessage() != null ? root.getMessage() : root.toString();
+    return new RuntimeException(what + ": " + detail, e);
+  }
+
   private static KeyStore loadKeyStore(String resource) {
     try {
       KeyStore keyStore = KeyStore.getInstance(KEYSTORE_TYPE);
@@ -33,7 +47,7 @@ public final class SslUtil {
       }
       return keyStore;
     } catch (Exception e) {
-      throw new RuntimeException("Falha ao carregar keystore: " + resource, e);
+      throw fail("Falha ao carregar keystore " + resource, e);
     }
   }
 
@@ -47,7 +61,7 @@ public final class SslUtil {
       context.init(kmf.getKeyManagers(), null, new SecureRandom());
       return context.getServerSocketFactory();
     } catch (Exception e) {
-      throw new RuntimeException("Falha ao criar SSLServerSocketFactory", e);
+      throw fail("Falha ao criar SSLServerSocketFactory", e);
     }
   }
 
@@ -61,7 +75,7 @@ public final class SslUtil {
       context.init(null, tmf.getTrustManagers(), new SecureRandom());
       return context.getSocketFactory();
     } catch (Exception e) {
-      throw new RuntimeException("Falha ao criar SSLSocketFactory", e);
+      throw fail("Falha ao criar SSLSocketFactory", e);
     }
   }
 }

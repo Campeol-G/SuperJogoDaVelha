@@ -42,6 +42,14 @@ jobs:
           cp target/SuperJogoDavelha.jar stage/
         shell: bash
 
+      - name: Assert TLS keystores in JAR
+        # Sem os .p12 o online quebra ("Falha ao criar SSLSocketFactory").
+        # Eles são versionados de propósito (certs descartáveis de dev).
+        run: |
+          jar tf stage/SuperJogoDavelha.jar | grep -q 'server-keystore.p12' || (echo 'FALTANDO server-keystore.p12 no JAR' && exit 1)
+          jar tf stage/SuperJogoDavelha.jar | grep -q 'client-truststore.p12' || (echo 'FALTANDO client-truststore.p12 no JAR' && exit 1)
+        shell: bash
+
       - name: Install fakeroot (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y fakeroot
