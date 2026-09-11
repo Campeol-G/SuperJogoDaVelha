@@ -13,6 +13,7 @@ import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
 
 import com.Campeol.net.NetException;
+import com.Campeol.net.NetPoll;
 import com.Campeol.net.SslUtil;
 import com.Campeol.subgame.Match;
 
@@ -20,6 +21,8 @@ public class Server {
   private ObjectOutputStream writer;
   private ObjectInputStream reader;
   private char serverPiece;
+  /** Última escrita bem-sucedida (lida pela thread de heartbeat). */
+  private volatile long lastWriteMillis = System.currentTimeMillis();
 
   public Boolean start(int portNumber, String password) {
     try {
@@ -114,18 +117,57 @@ public class Server {
   }
 
   public void send(Match match) {
+    sendObject(match);
+  }
+
+  /**
+   * Envia um objeto. Sincronizado: a thread de heartbeat pode enviar PING
+   * enquanto a thread do jogo envia Match (ObjectOutputStream não é thread-safe).
+   *
+   * @return true se escreveu com sucesso.
+   */
+  public synchronized boolean sendObject(Object o) {
     try {
-      writer.writeObject(match);
+      writer.writeObject(o);
       writer.reset();
       writer.flush();
+      lastWriteMillis = System.currentTimeMillis();
+      return true;
     } catch (IOException e) {
       e.printStackTrace();
+      return false;
     }
   }
 
-  public Match receive() {
+  public long lastWriteMillis() {
+    return lastWriteMillis;
+  }
+
+  /**
+   * Leitura que distingue timeout (peer vivo, sem dados) de desconexão
+   * (EOF/reset: peer saiu ou caiu).
+   */
+  public NetPoll pollObject() {
     try {
-      return (Match) reader.readObject();
+      return NetPoll.ok(reader.readObject());
+    } catch (java.net.SocketTimeoutException e) {
+      return NetPoll.timeout();
+    } catch (java.io.EOFException e) {
+      return NetPoll.disconnected();
+    } catch (java.net.SocketException e) {
+      return NetPoll.disconnected();
+    } catch (IOException e) {
+      e.printStackTrace();
+      return NetPoll.disconnected();
+    } catch (ClassNotFoundException ex) {
+      ex.printStackTrace();
+      return NetPoll.timeout();
+    }
+  }
+
+  public Object receiveObject() {
+    try {
+      return reader.readObject();
     } catch (java.net.SocketTimeoutException e) {
       return null;
     } catch (java.io.EOFException e) {
@@ -135,6 +177,13 @@ public class Server {
     } catch (ClassNotFoundException ex) {
       ex.printStackTrace();
     }
+    return null;
+  }
+
+  public Match receive() {
+    Object o = receiveObject();
+    if (o instanceof Match) return (Match) o;
+    // se chegou NetMessage fora de hora, ignora e retorna null (caller faz poll de novo)
     return null;
   }
 
