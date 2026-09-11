@@ -1,7 +1,6 @@
 package com.Campeol.game;
 
 import java.io.IOException;
-import java.util.Scanner;
 
 import com.Campeol.MatchStatus;
 import com.Campeol.subgame.Match;
@@ -18,7 +17,6 @@ import com.Campeol.ui.UiUtils;
 import com.Campeol.ui.Viewport;
 import com.googlecode.lanterna.SGR;
 import com.googlecode.lanterna.TextColor;
-import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.graphics.TextGraphics;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
@@ -97,6 +95,8 @@ public class GameUI implements AutoCloseable {
     hideCursor();
     gb = new GameBoard();
     waitForEnoughSize();
+    // primeira execução: idioma (se faltar) e depois o nick, antes do menu
+    ensureNickAtStartup();
   }
 
   /**
@@ -122,70 +122,169 @@ public class GameUI implements AutoCloseable {
     screen.refresh();
   }
 
-  // ---------- menu legado (fora do escopo, mantido) ----------
-  public Integer Menu(Scanner sc) throws IOException {
-    screen.clear();
-    txt.putString(0, 0, "1. Multiplayer.");
-    txt.putString(0, 1, "2. Local.");
-    // menu legado usa Scanner: cursor visível e posicionado na linha de digitação
-    try {
-      screen.setCursorPosition(new TerminalPosition(0, 2));
-    } catch (Exception ignored) {
-    }
-    try {
-      terminal.setCursorVisible(true);
-    } catch (Exception ignored) {
-    }
-    screen.refresh();
-    String i = sc.nextLine();
-    hideCursor();
-    if (i.equals("1")) {
-      return 1;
-    } else {
-      return 2;
-    }
+  // ---------- menu principal (Lanterna nativo) ----------
+  public enum MainChoice {
+    LOCAL,
+    CREATE,
+    JOIN,
+    CONFIG,
+    HOWTO,
+    QUIT
   }
 
-  public Integer OnlineMenu(Scanner sc) throws IOException {
-    screen.clear();
-    txt.putString(0, 0, "1. Create game.");
-    txt.putString(0, 1, "2. Get in the game.");
-    // menu legado usa Scanner: cursor visível e posicionado na linha de digitação
-    try {
-      screen.setCursorPosition(new TerminalPosition(0, 2));
-    } catch (Exception ignored) {
-    }
-    try {
-      terminal.setCursorVisible(true);
-    } catch (Exception ignored) {
-    }
-    screen.refresh();
-    String i = sc.nextLine();
-    hideCursor();
-    if (i.equals("1")) {
-      return 1;
-    } else {
-      return 2;
-    }
+  private String menuTitle() {
+    return I18n.getLang().equals("pt") ? I18n.t("title.pt") : I18n.t("title");
   }
 
-  public char startLocalCustomGame() throws IOException, InterruptedException {
-    screen.clear();
-    char kp;
-    do {
+  public MainChoice mainMenu() throws IOException, InterruptedException {
+    MainChoice[] items = MainChoice.values();
+    int sel = 0;
+    while (true) {
       waitForEnoughSize();
-      txt.putString(0, 0, "Chose a piece to play[X/O]: ");
+      screen.clear();
+      int cols = terminal.getTerminalSize().getColumns();
+      int rows = terminal.getTerminalSize().getRows();
+      String title = menuTitle();
+      String[] labels = {
+          I18n.t("menu.local"),
+          I18n.t("menu.create"),
+          I18n.t("menu.join"),
+          I18n.t("menu.config"),
+          I18n.t("menu.howto"),
+          I18n.t("menu.quit")
+      };
+      String hint = I18n.t("menu.hint");
+      int contentW = title.length() + 2;
+      for (String l : labels) {
+        contentW = Math.max(contentW, l.length() + 6);
+      }
+      contentW = Math.max(contentW, hint.length() + 4);
+      int w = contentW + 4;
+      int h = labels.length + 6;
+      int x0 = Math.max(0, (cols - w) / 2);
+      int y0 = Math.max(0, (rows - h) / 2);
+      txt.setBackgroundColor(TextColor.ANSI.BLACK);
+      txt.setForegroundColor(TextColor.ANSI.WHITE);
+      for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+          txt.putString(x0 + x, y0 + y, " ");
+        }
+      }
+      txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
+      txt.enableModifiers(SGR.BOLD);
+      txt.putString(x0, y0, "┌" + "─".repeat(w - 2) + "┐");
+      for (int i = 1; i < h - 1; i++) {
+        txt.putString(x0, y0 + i, "│");
+        txt.putString(x0 + w - 1, y0 + i, "│");
+      }
+      txt.putString(x0, y0 + h - 1, "└" + "─".repeat(w - 2) + "┘");
+      txt.putString(x0 + (w - title.length()) / 2, y0, " " + title + " ");
+      txt.clearModifiers();
+      for (int i = 0; i < labels.length; i++) {
+        txt.setBackgroundColor(TextColor.ANSI.BLACK);
+        if (i == sel) {
+          txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
+          txt.enableModifiers(SGR.REVERSE, SGR.BOLD);
+        } else {
+          txt.setForegroundColor(TextColor.ANSI.WHITE);
+        }
+        String row = "  " + labels[i] + "  ";
+        txt.putString(x0 + 3, y0 + 2 + i, row);
+        txt.clearModifiers();
+      }
+      txt.setBackgroundColor(TextColor.ANSI.BLACK);
+      txt.setForegroundColor(Theme.DIM_FG);
+      txt.putString(x0 + Math.max(0, (w - hint.length()) / 2), y0 + h - 2, hint);
+      txt.clearModifiers();
+      txt.setBackgroundColor(null);
+      txt.setForegroundColor(null);
       refresh();
-      KeyStroke keyPressed = screen.readInput();
-      if (keyPressed.getKeyType() == KeyType.Escape) {
+      KeyStroke k = screen.readInput();
+      if (k == null) continue;
+      if (k.getKeyType() == KeyType.Escape) return MainChoice.QUIT;
+      if (k.getKeyType() == KeyType.ArrowUp) {
+        sel = (sel + items.length - 1) % items.length;
+        continue;
+      }
+      if (k.getKeyType() == KeyType.ArrowDown) {
+        sel = (sel + 1) % items.length;
+        continue;
+      }
+      if (k.getKeyType() == KeyType.Enter) return items[sel];
+    }
+  }
+
+  /** Escolha de peça em tela Lanterna (X/O). Esc volta (retorna ' '). */
+  public char startLocalCustomGame() throws IOException, InterruptedException {
+    int sel = 0;
+    String[] pieces = {"X", "O"};
+    while (true) {
+      waitForEnoughSize();
+      screen.clear();
+      int cols = terminal.getTerminalSize().getColumns();
+      int rows = terminal.getTerminalSize().getRows();
+      String title = I18n.t("piece.title");
+      String hint = I18n.t("piece.hint");
+      int w = Math.max(title.length(), hint.length()) + 8;
+      int h = 9;
+      int x0 = Math.max(0, (cols - w) / 2);
+      int y0 = Math.max(0, (rows - h) / 2);
+      txt.setBackgroundColor(TextColor.ANSI.BLACK);
+      txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
+      for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+          txt.putString(x0 + x, y0 + y, " ");
+        }
+      }
+      txt.enableModifiers(SGR.BOLD);
+      txt.putString(x0, y0, "┌" + "─".repeat(w - 2) + "┐");
+      for (int i = 1; i < h - 1; i++) {
+        txt.putString(x0, y0 + i, "│");
+        txt.putString(x0 + w - 1, y0 + i, "│");
+      }
+      txt.putString(x0, y0 + h - 1, "└" + "─".repeat(w - 2) + "┘");
+      txt.putString(x0 + (w - title.length()) / 2, y0, " " + title + " ");
+      txt.clearModifiers();
+      for (int i = 0; i < pieces.length; i++) {
+        txt.setBackgroundColor(TextColor.ANSI.BLACK);
+        if (i == sel) {
+          txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
+          txt.enableModifiers(SGR.REVERSE, SGR.BOLD);
+        } else {
+          txt.setForegroundColor(TextColor.ANSI.WHITE);
+        }
+        txt.putString(x0 + (w - 5) / 2, y0 + 3 + i, "  " + pieces[i] + "  ");
+        txt.clearModifiers();
+      }
+      txt.setBackgroundColor(TextColor.ANSI.BLACK);
+      txt.setForegroundColor(Theme.DIM_FG);
+      txt.putString(x0 + Math.max(0, (w - hint.length()) / 2), y0 + h - 2, hint);
+      txt.clearModifiers();
+      txt.setBackgroundColor(null);
+      txt.setForegroundColor(null);
+      refresh();
+      KeyStroke k = screen.readInput();
+      if (k == null) continue;
+      if (k.getKeyType() == KeyType.Escape) {
         gb.setGameStatus(MatchStatus.INTERRUPTED);
         gb.getClock().stop();
         return ' ';
       }
-      Character c = keyPressed.getCharacter();
-      kp = c == null ? ' ' : Character.toUpperCase(c);
-    } while (kp != 'X' && kp != 'O');
-    return kp;
+      if (k.getKeyType() == KeyType.ArrowUp || k.getKeyType() == KeyType.ArrowLeft) {
+        sel = 1 - sel;
+        continue;
+      }
+      if (k.getKeyType() == KeyType.ArrowDown || k.getKeyType() == KeyType.ArrowRight) {
+        sel = 1 - sel;
+        continue;
+      }
+      if (k.getKeyType() == KeyType.Enter) return pieces[sel].charAt(0);
+      Character c = k.getCharacter();
+      if (c != null) {
+        char u = Character.toUpperCase(c);
+        if (u == 'X' || u == 'O') return u;
+      }
+    }
   }
 
   // ---------- idioma / nick ----------
@@ -252,15 +351,29 @@ public class GameUI implements AutoCloseable {
     }
   }
 
-  public String ensureOnlineNick() throws IOException, InterruptedException {
+  /**
+   * Garante o nick sem perguntar (o nick é pedido uma vez no startup,
+   * logo após o idioma; aqui só usa o salvo ou o padrão).
+   */
+  public String ensureOnlineNick() {
     if (localNick != null && !localNick.isEmpty()) return localNick;
     String saved = ProfileStore.getNick();
     if (saved != null && !saved.trim().isEmpty()) {
       localNick = UiUtils.clampNick(saved, 12);
-      return localNick;
+    } else {
+      localNick = I18n.t("nick.you");
     }
-    localNick = promptNick();
     return localNick;
+  }
+
+  /** Fluxo de primeira execução: se não há nick salvo, pede uma vez. */
+  public void ensureNickAtStartup() throws IOException, InterruptedException {
+    String saved = ProfileStore.getNick();
+    if (saved != null && !saved.trim().isEmpty()) {
+      localNick = UiUtils.clampNick(saved, 12);
+    } else {
+      localNick = promptNick();
+    }
   }
 
   private String promptNick() throws IOException, InterruptedException {
@@ -463,7 +576,199 @@ public class GameUI implements AutoCloseable {
     render();
   }
 
-  private void openConfig() throws IOException, InterruptedException {
+  /** Tela cheia de ajuda (item "Como jogar" do menu). Qualquer tecla volta. */
+  public void showHelpBlocking() throws IOException, InterruptedException {
+    Viewport vp = currentViewport();
+    HelpOverlay.show(screen, txt, vp);
+    refresh();
+    while (true) {
+      KeyStroke k = screen.readInput();
+      if (k == null) continue;
+      if (k.getKeyType() == KeyType.Escape) break;
+      Character c = k.getCharacter();
+      if (c != null && (c == '?' || c == 'h' || c == 'H')) break;
+      if (k.getKeyType() == KeyType.Enter) break;
+    }
+  }
+
+  /** Tela de espera (ex. buscando servidor). Sem entrada. */
+  public void showWaiting(String messageKey) throws IOException, InterruptedException {
+    showWaiting(messageKey, null);
+  }
+
+  /**
+   * Tela de espera com linha extra (ex. segundos decorridos) e dica de
+   * cancelamento. Sem entrada (o chamador consulta o teclado).
+   */
+  public void showWaiting(String messageKey, String extraLine)
+      throws IOException, InterruptedException {
+    waitForEnoughSize();
+    screen.clear();
+    int cols = terminal.getTerminalSize().getColumns();
+    int rows = terminal.getTerminalSize().getRows();
+    String msg = I18n.t(messageKey);
+    String hint = I18n.t("wait.cancel");
+    int contentW = Math.max(msg.length(), hint.length());
+    if (extraLine != null) {
+      contentW = Math.max(contentW, extraLine.length());
+    }
+    int w = contentW + 8;
+    int h = 7;
+    int x0 = Math.max(0, (cols - w) / 2);
+    int y0 = Math.max(0, (rows - h) / 2);
+    txt.setBackgroundColor(TextColor.ANSI.BLACK);
+    txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
+    for (int y = 0; y < h; y++) {
+      for (int x = 0; x < w; x++) {
+        txt.putString(x0 + x, y0 + y, " ");
+      }
+    }
+    txt.enableModifiers(SGR.BOLD);
+    txt.putString(x0, y0, "┌" + "─".repeat(w - 2) + "┐");
+    for (int i = 1; i < h - 1; i++) {
+      txt.putString(x0, y0 + i, "│");
+      txt.putString(x0 + w - 1, y0 + i, "│");
+    }
+    txt.putString(x0, y0 + h - 1, "└" + "─".repeat(w - 2) + "┘");
+    txt.putString(x0 + (w - msg.length()) / 2, y0 + 2, msg);
+    txt.clearModifiers();
+    if (extraLine != null && !extraLine.isEmpty()) {
+      txt.setForegroundColor(TextColor.ANSI.WHITE);
+      txt.setBackgroundColor(TextColor.ANSI.BLACK);
+      txt.putString(x0 + (w - extraLine.length()) / 2, y0 + 3, extraLine);
+      txt.clearModifiers();
+    }
+    txt.setForegroundColor(Theme.DIM_FG);
+    txt.setBackgroundColor(TextColor.ANSI.BLACK);
+    txt.putString(x0 + (w - hint.length()) / 2, y0 + 4, hint);
+    txt.clearModifiers();
+    txt.setBackgroundColor(null);
+    txt.setForegroundColor(null);
+    refresh();
+  }
+
+  /**
+   * Toast rápido: caixinha centralizada por alguns ms (ex. "Busca
+   * cancelada"), sem render de tabuleiro. Drena o teclado ao sair.
+   */
+  public void toast(String messageKey, long ms) throws IOException, InterruptedException {
+    screen.clear();
+    int cols = terminal.getTerminalSize().getColumns();
+    int rows = terminal.getTerminalSize().getRows();
+    String msg = I18n.t(messageKey);
+    int w = msg.length() + 8;
+    int h = 5;
+    int x0 = Math.max(0, (cols - w) / 2);
+    int y0 = Math.max(0, (rows - h) / 2);
+    txt.setBackgroundColor(TextColor.ANSI.BLACK);
+    txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
+    for (int y = 0; y < h; y++) {
+      for (int x = 0; x < w; x++) {
+        txt.putString(x0 + x, y0 + y, " ");
+      }
+    }
+    txt.enableModifiers(SGR.BOLD);
+    txt.putString(x0, y0, "┌" + "─".repeat(w - 2) + "┐");
+    for (int i = 1; i < h - 1; i++) {
+      txt.putString(x0, y0 + i, "│");
+      txt.putString(x0 + w - 1, y0 + i, "│");
+    }
+    txt.putString(x0, y0 + h - 1, "└" + "─".repeat(w - 2) + "┘");
+    txt.putString(x0 + (w - msg.length()) / 2, y0 + 2, msg);
+    txt.clearModifiers();
+    txt.setBackgroundColor(null);
+    txt.setForegroundColor(null);
+    refresh();
+    long end = System.currentTimeMillis() + ms;
+    while (System.currentTimeMillis() < end) {
+      screen.pollInput();
+      Thread.sleep(50);
+    }
+    while (screen.pollInput() != null) {
+    }
+  }
+
+  /**
+   * Caixa de senha Lanterna. Começa mascarada (****); Tab alterna
+   * visível/invisível. Enter confirma, Esc cancela (retorna null).
+   */
+  public String promptPassword(String titleKey) throws IOException, InterruptedException {
+    StringBuilder sb = new StringBuilder();
+    boolean visible = false;
+    while (true) {
+      screen.clear();
+      int cols = terminal.getTerminalSize().getColumns();
+      int rows = terminal.getTerminalSize().getRows();
+      String title = I18n.t(titleKey);
+      String hint = I18n.t("pass.hint");
+      String toggle = visible ? I18n.t("pass.hide") : I18n.t("pass.show");
+      int w = 46;
+      int h = 11;
+      int x0 = Math.max(0, (cols - w) / 2);
+      int y0 = Math.max(0, (rows - h) / 2);
+      txt.setBackgroundColor(TextColor.ANSI.BLACK);
+      txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
+      for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+          txt.putString(x0 + x, y0 + y, " ");
+        }
+      }
+      txt.enableModifiers(SGR.BOLD);
+      txt.putString(x0, y0, "┌" + "─".repeat(w - 2) + "┐");
+      for (int i = 1; i < h - 1; i++) {
+        txt.putString(x0, y0 + i, "│");
+        txt.putString(x0 + w - 1, y0 + i, "│");
+      }
+      txt.putString(x0, y0 + h - 1, "└" + "─".repeat(w - 2) + "┘");
+      txt.putString(x0 + (w - title.length()) / 2, y0, " " + title + " ");
+      txt.clearModifiers();
+      String shown = visible ? sb.toString() : "*".repeat(sb.length());
+      String box = "[" + shown + (System.currentTimeMillis() % 1000 < 500 ? "_" : " ") + "]";
+      txt.setForegroundColor(TextColor.ANSI.WHITE);
+      txt.setBackgroundColor(TextColor.ANSI.BLACK);
+      txt.putString(x0 + 2, y0 + 3, " ".repeat(w - 4));
+      txt.putString(x0 + (w - Math.max(box.length(), 4)) / 2, y0 + 3,
+          box.length() > w - 4 ? box.substring(0, w - 4) : box);
+      txt.setForegroundColor(Theme.DIM_FG);
+      txt.putString(x0 + Math.max(0, (w - toggle.length()) / 2), y0 + 5, toggle);
+      txt.putString(x0 + Math.max(0, (w - hint.length()) / 2), y0 + 6, hint);
+      txt.clearModifiers();
+      txt.setBackgroundColor(null);
+      txt.setForegroundColor(null);
+      refresh();
+      KeyStroke k = screen.readInput();
+      if (k == null) continue;
+      if (k.getKeyType() == KeyType.Escape) return null;
+      if (k.getKeyType() == KeyType.Tab) {
+        visible = !visible;
+        continue;
+      }
+      if (k.getKeyType() == KeyType.Enter) {
+        if (sb.length() == 0) continue;
+        return sb.toString();
+      }
+      if (k.getKeyType() == KeyType.Backspace) {
+        if (sb.length() > 0) sb.deleteCharAt(sb.length() - 1);
+        continue;
+      }
+      Character c = k.getCharacter();
+      if (c != null && !Character.isISOControl(c) && c != ' ' && sb.length() < 20) {
+        sb.append(c);
+      }
+    }
+  }
+
+  /** Prepara tabuleiro zerado para uma nova sessão (menu → jogo). */
+  public void resetForNewGame() {
+    gb.startAllGames();
+    gb.setGameStatus(MatchStatus.IN_PROGRESS);
+    lastDest = null;
+    lastDestFree = true;
+    transientMsg = null;
+    resetLeaveReason();
+  }
+
+  public void openConfig() throws IOException, InterruptedException {
     ConfigOverlay.show(screen, txt);
     while (true) {
       KeyStroke k2 = screen.readInput();

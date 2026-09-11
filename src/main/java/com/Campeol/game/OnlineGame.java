@@ -1,7 +1,6 @@
 package com.Campeol.game;
 
 import java.util.Random;
-import java.util.Scanner;
 
 import com.Campeol.client.Client;
 import com.Campeol.net.NetPoll;
@@ -17,7 +16,6 @@ public class OnlineGame {
   private Server server;
   private Client client;
   private final static int portNumber = 8080;
-  private final static Scanner sc = new Scanner(System.in);
 
   /** Heartbeat: PING a cada tantos ms parado; morte após tanto ms sem nada. */
   public static final long HEARTBEAT_INTERVAL_MILLIS = 3000;
@@ -28,10 +26,14 @@ public class OnlineGame {
   private volatile boolean heartbeatOn = false;
   private Thread heartbeatThread = null;
 
-  public Boolean createGame() {
-    System.out.print("Chose a password: ");
-    String password = sc.nextLine();
+  /** Conexão assíncrona (espera cancelável estilo Clash Royale). */
+  private volatile Thread connectThread = null;
+  private volatile boolean connectDone = false;
+  private volatile Boolean connectResult = null;
+  private volatile Throwable connectError = null;
+  private volatile boolean cancelRequested = false;
 
+  public Boolean createGame(String password) {
     server = new Server();
     return server.start(portNumber, password);
   }
@@ -60,9 +62,7 @@ public class OnlineGame {
     return server.pollObject();
   }
 
-  public Boolean getInTheGame() {
-    System.out.print("Enter the password: ");
-    String password = sc.nextLine();
+  public Boolean getInTheGame(String password) {
     client = new Client();
     return client.start(portNumber, password);
   }
@@ -150,8 +150,85 @@ public class OnlineGame {
     }
   }
 
+  /**
+   * Conecta em worker-thread daemon para a UI poder mostrar a espera e
+   * aceitar Esc (cancelar partida). O Boolean tem a mesma semântica dos
+   * métodos síncronos (sorteio); use connectError() para falhas.
+   */
+  public synchronized void connectAsync(boolean isServer, String password) {
+    cancelConnect();
+    connectDone = false;
+    connectResult = null;
+    connectError = null;
+    cancelRequested = false;
+    if (isServer) {
+      server = new Server();
+    } else {
+      client = new Client();
+    }
+    connectThread = new Thread(() -> {
+      try {
+        Boolean r = isServer
+            ? server.start(portNumber, password)
+            : client.start(portNumber, password);
+        connectResult = r;
+      } catch (Throwable e) {
+        connectError = e;
+        connectResult = Boolean.FALSE;
+      } finally {
+        connectDone = true;
+      }
+    }, "connect");
+    connectThread.setDaemon(true);
+    connectThread.start();
+  }
+
+  public synchronized boolean isConnectDone() {
+    return connectDone;
+  }
+
+  public synchronized Boolean connectResult() {
+    return connectResult;
+  }
+
+  public synchronized Throwable connectError() {
+    return connectError;
+  }
+
+  public synchronized boolean wasCancelRequested() {
+    return cancelRequested;
+  }
+
+  /**
+   * Cancela uma conexão pendente: fecha os sockets para soltar os
+   * bloqueios (accept/receive) e interrompe a worker. Idempotente.
+   */
+  public synchronized void cancelConnect() {
+    cancelRequested = true;
+    if (server != null) {
+      try {
+        server.cancel();
+      } catch (Exception ignored) {
+      }
+    }
+    if (client != null) {
+      try {
+        client.cancelDiscovery();
+      } catch (Exception ignored) {
+      }
+    }
+    if (connectThread != null) {
+      try {
+        connectThread.interrupt();
+      } catch (Exception ignored) {
+      }
+      connectThread = null;
+    }
+  }
+
   public void close() {
     stopHeartbeat();
+    cancelConnect();
     if (server != null) {
       server.close();
     }

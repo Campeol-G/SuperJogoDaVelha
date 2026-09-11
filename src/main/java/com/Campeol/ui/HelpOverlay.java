@@ -13,7 +13,7 @@ public final class HelpOverlay {
 
   public static void show(Screen screen, TextGraphics txt, Viewport vp) throws java.io.IOException {
     int w = 38;
-    int h = 12;
+    int h = 16;
     int termCols = screen.getTerminalSize().getColumns();
     int termRows = screen.getTerminalSize().getRows();
     int x0 = Math.max(0, (termCols - w) / 2);
@@ -44,6 +44,10 @@ public final class HelpOverlay {
     txt.setForegroundColor(TextColor.ANSI.WHITE);
     txt.setBackgroundColor(TextColor.ANSI.BLACK);
     String[] rows = {
+        I18n.t("help.rule1"),
+        I18n.t("help.rule2"),
+        I18n.t("help.rule3"),
+        "",
         I18n.t("help.row1"),
         I18n.t("help.row2"),
         I18n.t("help.row3"),

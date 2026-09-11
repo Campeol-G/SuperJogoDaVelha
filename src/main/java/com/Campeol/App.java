@@ -1,7 +1,6 @@
 package com.Campeol;
 
 import java.io.IOException;
-import java.util.Scanner;
 
 import com.Campeol.game.GameUI;
 import com.Campeol.game.OnlineGame;
@@ -18,105 +17,31 @@ import com.googlecode.lanterna.input.KeyType;
 
 public class App {
   public static void main(String[] args) {
-    Scanner sc = new Scanner(System.in);
     int exitCode = 0;
     try (GameUI ui = new GameUI()) {
-      if (ui.Menu(sc) == 1) { // MULTIPLAYER
-        OnlineGame og = new OnlineGame();
-        if (ui.OnlineMenu(sc) == 1) { // CREATE GAME (server)
-          ui.setOnlineMode(true);
-          String nick = ui.ensureOnlineNick();
-          ui.setLocalNick(nick);
-          Boolean firstMove = og.createGame();
-          exchangeNick(og, true, ui);
-          // Troca de nick no meio da partida (config "1"): propaga ao oponente
-          // para o HUD dele atualizar junto.
-          ui.setNickChangeListener(newNick -> sendCtrl(og, true,
-              new NetMessage(NetMessage.Type.NICK, newNick)));
-          og.startHeartbeat();
-          ui.startPlayer(og.getServerPiece());
-          boolean serverStarts = firstMove;
-          boolean keepPlaying = true;
-          while (keepPlaying) {
-            ui.resetLeaveReason();
-            playOnlineMatch(ui, og, true, serverStarts);
-            if (ui.getStatus() == MatchStatus.IN_PROGRESS) break;
-            ui.recordResult();
-            if (handleOnlineLeave(ui)) {
-              keepPlaying = false;
-              continue;
-            }
-            boolean rematch = onlineRematchHandshake(ui, og, true);
-            if (ui.getLeaveReason() == GameUI.LeaveReason.PEER_QUIT
-                || ui.getLeaveReason() == GameUI.LeaveReason.PEER_LOST) {
-              showPeerLeftCountdown(ui, ui.getLeaveReason());
-              keepPlaying = false;
-            } else if (rematch) {
-              ui.newRoundAlternateStarter();
-              serverStarts = !serverStarts;
-            } else {
-              keepPlaying = false;
-            }
-          }
-          og.close();
-        } else { // GET IN THE GAME (client)
-          ui.setOnlineMode(true);
-          String nick = ui.ensureOnlineNick();
-          ui.setLocalNick(nick);
-          Boolean firstMove = og.getInTheGame();
-          exchangeNick(og, false, ui);
-          // Troca de nick no meio da partida (config "1"): propaga ao oponente
-          // para o HUD dele atualizar junto.
-          ui.setNickChangeListener(newNick -> sendCtrl(og, false,
-              new NetMessage(NetMessage.Type.NICK, newNick)));
-          og.startHeartbeat();
-          ui.startPlayer(og.getClientPiece());
-          boolean clientStarts = !firstMove;
-          boolean keepPlaying = true;
-          while (keepPlaying) {
-            ui.resetLeaveReason();
-            playOnlineMatch(ui, og, false, clientStarts);
-            if (ui.getStatus() == MatchStatus.IN_PROGRESS) break;
-            ui.recordResult();
-            if (handleOnlineLeave(ui)) {
-              keepPlaying = false;
-              continue;
-            }
-            boolean rematch = onlineRematchHandshake(ui, og, false);
-            if (ui.getLeaveReason() == GameUI.LeaveReason.PEER_QUIT
-                || ui.getLeaveReason() == GameUI.LeaveReason.PEER_LOST) {
-              showPeerLeftCountdown(ui, ui.getLeaveReason());
-              keepPlaying = false;
-            } else if (rematch) {
-              ui.newRoundAlternateStarter();
-              clientStarts = !clientStarts;
-            } else {
-              keepPlaying = false;
-            }
-          }
-          og.close();
-        }
-      } else {
-        ui.setOnlineMode(false);
-        // sessao local com revanche alternando quem começa
-        char piece = ui.startLocalCustomGame();
-        if (ui.getStatus() != MatchStatus.IN_PROGRESS) {
-          // ESC na escolha da peça → sai direto, sem modal duplo
-          exitCode = 0;
-        } else {
-          ui.startPlayer(piece);
-          while (true) {
-            playLocalMatch(ui);
-            if (ui.getStatus() != MatchStatus.IN_PROGRESS) {
-              ui.recordResult();
-              EndScreen.Result r = ui.endGame();
-              if (r.choice == EndScreen.Choice.REMATCH) {
-                ui.newRoundAlternateStarter();
-                continue;
-              }
-            }
+      boolean running = true;
+      while (running) {
+        GameUI.MainChoice choice = ui.mainMenu();
+        switch (choice) {
+          case LOCAL:
+            playLocalSession(ui);
             break;
-          }
+          case CREATE:
+            playOnlineSession(ui, true);
+            break;
+          case JOIN:
+            playOnlineSession(ui, false);
+            break;
+          case CONFIG:
+            ui.openConfig();
+            break;
+          case HOWTO:
+            ui.showHelpBlocking();
+            break;
+          case QUIT:
+          default:
+            running = false;
+            break;
         }
       }
     } catch (IOException e) {
@@ -125,15 +50,106 @@ public class App {
     } catch (InterruptedException y) {
       y.printStackTrace();
       exitCode = 1;
-    } finally {
-      try {
-        sc.close();
-      } catch (Exception ignored) {
-      }
     }
     // Garante que o ESC realmente encerra o processo (try-with-resources
-    // sozinho não mata threads do terminal/Scanner em todos os SOs).
+    // sozinho não mata threads do terminal em todos os SOs).
     System.exit(exitCode);
+  }
+
+  // ---------- sessoes (chamadas pelo menu) ----------
+  private static void playLocalSession(GameUI ui) throws IOException, InterruptedException {
+    ui.setOnlineMode(false);
+    ui.resetForNewGame();
+    // sessao local com revanche alternando quem começa
+    char piece = ui.startLocalCustomGame();
+    if (ui.getStatus() != MatchStatus.IN_PROGRESS) {
+      // ESC na escolha da peça → volta ao menu com estado limpo
+      ui.resetForNewGame();
+      return;
+    }
+    ui.startPlayer(piece);
+    while (true) {
+      playLocalMatch(ui);
+      if (ui.getStatus() != MatchStatus.IN_PROGRESS) {
+        ui.recordResult();
+        EndScreen.Result r = ui.endGame();
+        if (r.choice == EndScreen.Choice.REMATCH) {
+          ui.newRoundAlternateStarter();
+          continue;
+        }
+      }
+      break;
+    }
+    ui.resetForNewGame();
+  }
+
+  private static void playOnlineSession(GameUI ui, boolean isServer)
+      throws IOException, InterruptedException {
+    ui.setOnlineMode(true);
+    ui.setLocalNick(ui.ensureOnlineNick());
+    OnlineGame og = new OnlineGame();
+    try {
+      String password;
+      boolean starts;
+      if (isServer) {
+        password = ui.promptPassword("pass.create");
+        if (password == null) return;
+        Boolean connected = waitForConnect(ui, og, true, password);
+        if (connected == null) return;
+        starts = connected;
+        exchangeNick(og, true, ui);
+        ui.setNickChangeListener(newNick -> sendCtrl(og, true,
+            new NetMessage(NetMessage.Type.NICK, newNick)));
+        og.startHeartbeat();
+        ui.resetForNewGame();
+        ui.startPlayer(og.getServerPiece());
+      } else {
+        password = ui.promptPassword("pass.join");
+        if (password == null) return;
+        Boolean connected = waitForConnect(ui, og, false, password);
+        if (connected == null) return;
+        starts = !connected;
+        exchangeNick(og, false, ui);
+        ui.setNickChangeListener(newNick -> sendCtrl(og, false,
+            new NetMessage(NetMessage.Type.NICK, newNick)));
+        og.startHeartbeat();
+        ui.resetForNewGame();
+        ui.startPlayer(og.getClientPiece());
+      }
+      boolean keepPlaying = true;
+      while (keepPlaying) {
+        ui.resetLeaveReason();
+        playOnlineMatch(ui, og, isServer, starts);
+        if (ui.getStatus() == MatchStatus.IN_PROGRESS) break;
+        ui.recordResult();
+        if (handleOnlineLeave(ui)) {
+          keepPlaying = false;
+          continue;
+        }
+        boolean rematch = onlineRematchHandshake(ui, og, isServer);
+        if (ui.getLeaveReason() == GameUI.LeaveReason.PEER_QUIT
+            || ui.getLeaveReason() == GameUI.LeaveReason.PEER_LOST) {
+          showPeerLeftCountdown(ui, ui.getLeaveReason());
+          keepPlaying = false;
+        } else if (rematch) {
+          ui.newRoundAlternateStarter();
+          starts = !starts;
+        } else {
+          keepPlaying = false;
+        }
+      }
+    } catch (RuntimeException e) {
+      // ex. servidor não encontrado, senha inválida: mostra e volta ao menu
+      String msg = e.getMessage() != null ? e.getMessage() : e.toString();
+      try {
+        ui.showErro(msg);
+      } catch (InterruptedException x) {
+        Thread.currentThread().interrupt();
+      }
+    } finally {
+      og.close();
+    }
+    ui.resetForNewGame();
   }
 
   // ---------- local ----------
@@ -245,6 +261,55 @@ public class App {
         }
       }
     }
+  }
+
+  /**
+   * Espera a conexão com Esc cancelável (estilo Clash Royale): a conexão
+   * roda em worker-thread e este loop consulta o teclado. Conexão concluída
+   * vence o Esc da mesma fatia. Retorna null se o usuário cancelou (com
+   * toast) — nesse caso volta ao menu. Falha de rede vira RuntimeException
+   * (tratada pelo chamador com showErro + volta ao menu).
+   */
+  private static Boolean waitForConnect(GameUI ui, OnlineGame og, boolean isServer, String password)
+      throws IOException, InterruptedException {
+    og.connectAsync(isServer, password);
+    String waitKey = isServer ? "wait.host" : "wait.search";
+    long t0 = System.currentTimeMillis();
+    int lastSec = -1;
+    // drena teclas antigas para um Esc velho não cancelar na hora
+    while (ui.pollInput() != null) {
+    }
+    while (!og.isConnectDone()) {
+      KeyStroke k = ui.pollInput();
+      if (k != null && k.getKeyType() == KeyType.Escape) {
+        og.cancelConnect();
+        og.close();
+        ui.toast("wait.cancelled", 1200);
+        return null;
+      }
+      int sec = (int) ((System.currentTimeMillis() - t0) / 1000);
+      if (sec != lastSec) {
+        lastSec = sec;
+        ui.showWaiting(waitKey, sec + "s");
+      }
+      Thread.sleep(120);
+    }
+    if (og.wasCancelRequested()) {
+      og.close();
+      ui.toast("wait.cancelled", 1200);
+      return null;
+    }
+    Throwable err = og.connectError();
+    if (err != null) {
+      throw new RuntimeException(err.getMessage() != null ? err.getMessage() : err.toString());
+    }
+    Boolean result = og.connectResult();
+    if (result == null) {
+      // não deveria acontecer (worker sempre preenche); sem isso o
+      // unboxing em starts quebraria com NPE
+      throw new RuntimeException("connectResult vazio");
+    }
+    return result;
   }
 
   private static void sendMatch(OnlineGame og, boolean isServer, Match m) {

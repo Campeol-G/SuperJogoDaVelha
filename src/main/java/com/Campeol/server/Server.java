@@ -23,16 +23,58 @@ public class Server {
   private char serverPiece;
   /** Última escrita bem-sucedida (lida pela thread de heartbeat). */
   private volatile long lastWriteMillis = System.currentTimeMillis();
+  /** Socket de escuta (guardado para o cancel poder fechar e soltar o accept). */
+  private volatile SSLServerSocket listenSocket = null;
+  /** Cancelamento pedido pela UI (Esc na espera). Silencia o stacktrace. */
+  private volatile boolean cancelled = false;
+  /** Anúncio UDP de descoberta ligado? (desliga no cancel/close). */
+  private volatile boolean broadcasting = true;
+
+  /**
+   * Cancela uma espera em andamento: solta o accept() bloqueado e para
+   * de anunciar este host (evita join num fantasma). Idempotente.
+   */
+  public void cancel() {
+    cancelled = true;
+    broadcasting = false;
+    closeListener();
+  }
+
+  private void closeListener() {
+    SSLServerSocket s = listenSocket;
+    listenSocket = null;
+    if (s != null) {
+      try {
+        s.close();
+      } catch (IOException ignored) {
+      }
+    }
+  }
 
   public Boolean start(int portNumber, String password) {
+    // Sem reset de cancelled aqui: connectAsync sempre usa instância nova
+    // (flag nasce false); resetar abriria corrida com um cancel anterior.
+    broadcasting = true;
     try {
       SSLServerSocketFactory factory = SslUtil.getServerSocketFactory();
       SSLServerSocket server = (SSLServerSocket) factory.createServerSocket(portNumber);
+      listenSocket = server;
+      if (cancelled) {
+        // cancel chegou antes do accept: não bloqueia
+        closeListener();
+        return false;
+      }
       server.setNeedClientAuth(false);
       Thread broadcastThread = new Thread(this::sendUPDPacket);
       broadcastThread.setDaemon(true);
       broadcastThread.start();
-      SSLSocket socket = (SSLSocket) server.accept();
+      SSLSocket socket;
+      try {
+        socket = (SSLSocket) server.accept();
+      } finally {
+        // só um cliente por partida: fecha a escuta assim que aceitar
+        closeListener();
+      }
       socket.setSoTimeout(500);
       writer = new ObjectOutputStream(socket.getOutputStream());
       writer.flush();
@@ -59,7 +101,10 @@ public class Server {
         e.printStackTrace();
       }
     } catch (IOException e) {
-      e.printStackTrace();
+      // cancelamento (Esc) não é erro: volta silencioso
+      if (!cancelled) {
+        e.printStackTrace();
+      }
     }
     return false;
   }
@@ -68,13 +113,17 @@ public class Server {
     return serverPiece;
   }
 
+  public void stopBroadcast() {
+    broadcasting = false;
+  }
+
   public void sendUPDPacket() {
     int portServer = 5000;
     try (DatagramSocket socket = new DatagramSocket(portServer);) {
       byte[] buffer = new byte[1024];
       try {
         long endTime = System.currentTimeMillis() + 60000;
-        while (System.currentTimeMillis() < endTime) {
+        while (broadcasting && System.currentTimeMillis() < endTime) {
           DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
           socket.setSoTimeout(1000);
           try {
@@ -188,6 +237,8 @@ public class Server {
   }
 
   public void close() {
+    stopBroadcast();
+    closeListener();
     try {
       if (reader != null)
         reader.close();

@@ -26,6 +26,25 @@ public class Client {
   private char clientPiece;
   /** Última escrita bem-sucedida (lida pela thread de heartbeat). */
   private volatile long lastWriteMillis = System.currentTimeMillis();
+  /** Socket da descoberta UDP (guardado para o cancel soltar o receive). */
+  private volatile DatagramSocket discoverySocket = null;
+  /** Cancelamento pedido pela UI (Esc na espera). */
+  private volatile boolean cancelDiscovery = false;
+
+  /**
+   * Cancela uma busca em andamento: solta o receive() bloqueado.
+   * Idempotente.
+   */
+  public void cancelDiscovery() {
+    cancelDiscovery = true;
+    DatagramSocket s = discoverySocket;
+    if (s != null) {
+      try {
+        s.close();
+      } catch (Exception ignored) {
+      }
+    }
+  }
 
   public Boolean start(int portNumber, String password) {
     try {
@@ -63,14 +82,19 @@ public class Client {
     int portServer = 5000;
     int maxAttempts = 12;
     int attempts = 0;
-    try (DatagramSocket socket = new DatagramSocket();) {
+    // Sem reset do flag: connectAsync sempre usa instância nova (nasce
+    // false); resetar abriria corrida com um cancel anterior.
+    DatagramSocket socket = null;
+    try {
+      socket = new DatagramSocket();
+      discoverySocket = socket;
       socket.setSoTimeout(5000);
       byte[] buffer = new byte[1024];
       try {
         byte[] mensagem = "DISCOVER_SERVER".getBytes();
         InetAddress broadcastAddress = InetAddress.getByName("255.255.255.255");
         DatagramPacket conection = new DatagramPacket(mensagem, mensagem.length, broadcastAddress, portServer);
-        while (attempts < maxAttempts) {
+        while (attempts < maxAttempts && !cancelDiscovery) {
           socket.send(conection);
 
           DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
@@ -84,16 +108,31 @@ public class Client {
               return packet.getAddress();
             }
           } catch (SocketTimeoutException exp) {
-            System.out.println("Sem resposta do servidor, tentando novamente... (" + (attempts + 1) + "/" + maxAttempts + ")");
+            // silencioso: a tela de espera já está visível (sem System.out
+            // sob a tela Lanterna, que corromperia o terminal)
+          } catch (SocketException exp) {
+            // socket fechado pelo cancel: sai sem barulho
+            break;
           }
           attempts++;
         }
-        System.out.println("Servidor nao encontrado apos " + maxAttempts + " tentativas.");
       } catch (IOException e) {
-        e.printStackTrace();
+        if (!cancelDiscovery) {
+          e.printStackTrace();
+        }
+      } finally {
+        discoverySocket = null;
+        if (socket != null) {
+          try {
+            socket.close();
+          } catch (Exception ignored) {
+          }
+        }
       }
     } catch (SocketException ex) {
-      ex.printStackTrace();
+      if (!cancelDiscovery) {
+        ex.printStackTrace();
+      }
     }
     return null;
   }
