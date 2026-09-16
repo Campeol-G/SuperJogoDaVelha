@@ -55,6 +55,11 @@ public final class EndScreen {
 
   public static void draw(Screen screen, TextGraphics txt, MatchStatus status, String winnerLabel,
       SessionScore score, long matchMillis, String extraLine) throws java.io.IOException {
+    draw(screen, txt, status, winnerLabel, score, matchMillis, extraLine, I18n.t("end.rematch"));
+  }
+
+  public static void draw(Screen screen, TextGraphics txt, MatchStatus status, String winnerLabel,
+      SessionScore score, long matchMillis, String extraLine, String rematchHint) throws java.io.IOException {
     screen.clear();
     int cols = screen.getTerminalSize().getColumns();
     int rows = screen.getTerminalSize().getRows();
@@ -120,7 +125,7 @@ public final class EndScreen {
       txt.clearModifiers();
       txt.setForegroundColor(TextColor.ANSI.WHITE);
     }
-    String opt = I18n.t("end.rematch");
+    String opt = rematchHint != null ? rematchHint : I18n.t("end.rematch");
     txt.putString(x0 + (w - opt.length()) / 2, y0 + h - 3, opt);
 
     txt.clearModifiers();

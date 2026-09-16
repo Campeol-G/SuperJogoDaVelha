@@ -15,7 +15,7 @@ public final class SslUtil {
   private SslUtil() {
   }
 
-  public static final String KEYSTORE_PASSWORD = "ocihc1044";
+  public static final String KEYSTORE_PASSWORD = "senha123";
 
   private static final String KEYSTORE_TYPE = "PKCS12";
 

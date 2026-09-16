@@ -6,26 +6,27 @@ import com.googlecode.lanterna.graphics.TextGraphics;
 import com.googlecode.lanterna.screen.Screen;
 
 /**
- * Overlay de configuração: trocar nick / idioma sem sair do jogo.
+ * Tutorial do modo Rankeado local: só funcionalidades, sem tecnicês.
  */
-public final class ConfigOverlay {
-  private ConfigOverlay() {}
+public final class RankedHelpOverlay {
+  private RankedHelpOverlay() {}
 
   public static void show(Screen screen, TextGraphics txt) throws java.io.IOException {
-    int w = 38;
-    int h = 10;
+    int w = 46;
+    int h = 18;
     int termCols = screen.getTerminalSize().getColumns();
     int termRows = screen.getTerminalSize().getRows();
     int x0 = Math.max(0, (termCols - w) / 2);
     int y0 = Math.max(0, (termRows - h) / 2);
 
     txt.setBackgroundColor(TextColor.ANSI.BLACK);
-    txt.setForegroundColor(TextColor.ANSI.WHITE);
+    txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
     for (int y = 0; y < h; y++) {
       for (int x = 0; x < w; x++) {
         txt.putString(x0 + x, y0 + y, " ");
       }
     }
+    txt.setBackgroundColor(TextColor.ANSI.BLACK);
     txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
     txt.enableModifiers(SGR.BOLD);
     txt.putString(x0, y0, "┌" + "─".repeat(w - 2) + "┐");
@@ -34,26 +35,30 @@ public final class ConfigOverlay {
       txt.putString(x0 + w - 1, y0 + i, "│");
     }
     txt.putString(x0, y0 + h - 1, "└" + "─".repeat(w - 2) + "┘");
-    String title = I18n.t("config.title");
-    txt.putString(x0 + (w - title.length()) / 2, y0, " " + title + " ");
+    String title = I18n.t("ranked.help.title");
+    txt.putString(x0 + Math.max(0, (w - title.length() - 2) / 2), y0, " " + title + " ");
     txt.clearModifiers();
 
     txt.setForegroundColor(TextColor.ANSI.WHITE);
     txt.setBackgroundColor(TextColor.ANSI.BLACK);
-    String curNick = ProfileStore.getNick();
-    if (curNick == null || curNick.isEmpty()) curNick = I18n.t("nick.you");
-    String curLang = "pt".equals(I18n.getLang()) ? "PT" : "EN";
     String[] rows = {
-        I18n.t("config.nick") + "  (" + curNick + ")",
-        I18n.t("config.lang") + "  [" + curLang + "]",
-        I18n.t("config.rank"),
+        I18n.t("ranked.help.row1"),
+        I18n.t("ranked.help.row2"),
+        I18n.t("ranked.help.row3"),
+        I18n.t("ranked.help.row4"),
+        I18n.t("ranked.help.row5"),
+        I18n.t("ranked.help.row6"),
+        I18n.t("ranked.help.row7"),
+        I18n.t("ranked.help.row8"),
+        I18n.t("ranked.help.row9"),
+        I18n.t("ranked.help.row10"),
         "",
-        I18n.t("config.hint"),
-        I18n.t("config.close")
+        I18n.t("ranked.help.close")
     };
     for (int i = 0; i < rows.length && i < h - 2; i++) {
-      String r = rows[i].length() > w - 4 ? rows[i].substring(0, w - 4) : rows[i];
-      txt.putString(x0 + 2, y0 + 2 + i, r);
+      String r = rows[i] == null ? "" : rows[i];
+      txt.setForegroundColor(i >= rows.length - 1 ? Theme.DIM_FG : TextColor.ANSI.WHITE);
+      txt.putString(x0 + 2, y0 + 2 + i, r.length() > w - 4 ? r.substring(0, w - 4) : r);
     }
     txt.clearModifiers();
     txt.setBackgroundColor(null);

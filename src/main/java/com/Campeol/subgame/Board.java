@@ -10,6 +10,8 @@ import com.googlecode.lanterna.graphics.TextGraphics;
 
 public class Board implements Serializable {
 
+  private static final long serialVersionUID = 1L;
+
   private Integer row;
   private Integer column;
   private Piece[][] boardPlace;
@@ -133,6 +135,44 @@ public class Board implements Serializable {
   public boolean positionExist(Position position) {
     return position.getRow() >= 0 && position.getRow() < row && position.getColumn() >= 0
         && position.getColumn() < column;
+  }
+
+  /** Peça em (r,c) ou null se vazia. Para o bot simular. */
+  public Piece getPiece(int r, int c) {
+    if (r < 0 || r >= row || c < 0 || c >= column) return null;
+    return boardPlace[r][c];
+  }
+
+  /** Casas livres do mini. */
+  public java.util.List<Position> freeCells() {
+    java.util.List<Position> out = new java.util.ArrayList<>();
+    for (int i = 0; i < row; i++) {
+      for (int j = 0; j < column; j++) {
+        if (boardPlace[i][j] == null) out.add(new Position(i, j));
+      }
+    }
+    return out;
+  }
+
+  /** Cópia profunda só das peças (para minimax). */
+  public Board copy() {
+    Board b = new Board(row, column);
+    for (int i = 0; i < row; i++) {
+      for (int j = 0; j < column; j++) {
+        if (boardPlace[i][j] != null) {
+          b.boardPlace[i][j] = new Piece(boardPlace[i][j].getXorO());
+        }
+      }
+    }
+    return b;
+  }
+
+  /** Coloca peça direto (sem validar turno). Para simulação do bot. */
+  public void setPiece(int r, int c, char xorO) {
+    if (r < 0 || r >= row || c < 0 || c >= column) {
+      throw new SubGameException(com.Campeol.ui.I18n.t("invalid.pos"));
+    }
+    boardPlace[r][c] = new Piece(xorO);
   }
 
   private boolean samePiece(int r1, int c1, int r2, int c2, int r3, int c3) {

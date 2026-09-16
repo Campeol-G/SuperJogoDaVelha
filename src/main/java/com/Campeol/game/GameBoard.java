@@ -28,6 +28,8 @@ public class GameBoard {
   private boolean matchFinished;
   private final GameClock clock = new GameClock();
   private boolean starterIsP1 = true;
+  /** Peça sem timer (bot no rankeado). Null = todos contam (local/online). */
+  private Character noClockPiece = null;
 
   public GameBoard() {
     startAllGames();
@@ -35,13 +37,16 @@ public class GameBoard {
   }
 
   public void startPlayer(char XorO) {
+    if (XorO != 'X' && XorO != 'O') {
+      throw new IllegalArgumentException("Piece must be X or O");
+    }
     p1 = new Player(new Piece(XorO));
     p2 = new Player(new Piece(XorO == 'X' ? 'O' : 'X'));
     currentPlayer = p1;
     starterIsP1 = true;
     turn = 1;
     clock.startMatch();
-    clock.startTurn(currentPlayer.getPiece().getXorO());
+    startClockFor(currentPlayer);
   }
 
   public void startPlayer() {
@@ -59,7 +64,7 @@ public class GameBoard {
     starterIsP1 = true;
     turn = 1;
     clock.startMatch();
-    clock.startTurn(currentPlayer.getPiece().getXorO());
+    startClockFor(currentPlayer);
   }
 
   /** Nova rodada alternando quem começa (revanche). Mantém peças, troca o titular. */
@@ -76,7 +81,7 @@ public class GameBoard {
     }
     currentPlayer = starterIsP1 ? p1 : p2;
     clock.startMatch();
-    clock.startTurn(currentPlayer.getPiece().getXorO());
+    startClockFor(currentPlayer);
   }
 
   public void getPlayers(Player p1, Player p2) {
@@ -105,11 +110,39 @@ public class GameBoard {
   }
 
   public void changeTurn() {
-    clock.stopTurn();
+    // fecha o turno de quem sai — descarta se for a peça sem relógio (bot)
+    if (isNoClock(currentPlayer)) {
+      clock.pause();
+    } else {
+      clock.stopTurn();
+    }
     currentPlayer = currentPlayer == p1 ? p2 : p1;
     turn++;
     if (currentPlayer != null) {
-      clock.startTurn(currentPlayer.getPiece().getXorO());
+      startClockFor(currentPlayer);
+    }
+  }
+
+  /** Define a peça que não conta tempo (bot no rankeado). Null = todos contam. */
+  public void setNoClockPiece(Character piece) {
+    this.noClockPiece = piece;
+  }
+
+  public void clearNoClockPiece() {
+    this.noClockPiece = null;
+  }
+
+  private boolean isNoClock(Player player) {
+    return player != null && noClockPiece != null
+        && player.getPiece().getXorO() == noClockPiece;
+  }
+
+  private void startClockFor(Player player) {
+    if (player == null) return;
+    if (isNoClock(player)) {
+      clock.pause();
+    } else {
+      clock.startTurn(player.getPiece().getXorO());
     }
   }
 
@@ -120,6 +153,13 @@ public class GameBoard {
         gamePlaces[i][j] = new Match(i * ROW_SPACING + ROW_OFFSET, j * COL_SPACING + COL_OFFSET, i, j);
       }
     }
+  }
+
+  /** Limpa resultado global (vencedor/status) ao trocar de sessão/modo. */
+  public void clearResult() {
+    winner = null;
+    matchFinished = false;
+    status = MatchStatus.IN_PROGRESS;
   }
 
   public void divisors(TextGraphics txt) {
@@ -331,6 +371,13 @@ public class GameBoard {
     if (m1.getMatchStatus() == MatchStatus.VICTORY &&
         m2.getMatchStatus() == MatchStatus.VICTORY &&
         m3.getMatchStatus() == MatchStatus.VICTORY) {
+      if (m1.getWinner() == null || m2.getWinner() == null || m3.getWinner() == null) {
+        return false;
+      }
+      if (m1.getWinner().getPiece() == null || m2.getWinner().getPiece() == null
+          || m3.getWinner().getPiece() == null) {
+        return false;
+      }
       Piece p1 = m1.getWinner().getPiece();
       return p1.equals(m2.getWinner().getPiece()) && p1.equals(m3.getWinner().getPiece());
     }
@@ -355,17 +402,33 @@ public class GameBoard {
   }
 
   public Match getGamePlaces(int i, int j) {
+    if (i < 0 || i >= BOARD_COUNT || j < 0 || j >= BOARD_COUNT) {
+      throw new com.Campeol.subgame.exception.SubGameException(I18n.t("invalid.pos"));
+    }
     return gamePlaces[i][j];
   }
 
   public void setGamePlaces(int i, int j, Match match) {
+    if (i < 0 || i >= BOARD_COUNT || j < 0 || j >= BOARD_COUNT) {
+      throw new com.Campeol.subgame.exception.SubGameException(I18n.t("invalid.pos"));
+    }
+    if (match == null) {
+      throw new com.Campeol.subgame.exception.SubGameException(I18n.t("invalid.pos"));
+    }
     gamePlaces[i][j] = match;
   }
 
   public void updateGlobalStatus() {
     if (gameOver()) {
+      Player w = getGameWinner();
+      // Se a linha macro existe mas não mapeia para p1/p2 (ex. Match
+      // desserializado com Player estranho), não declara vitória fantasma:
+      // mantém IN_PROGRESS para não corromper placar/end screen.
+      if (w == null) {
+        return;
+      }
       status = MatchStatus.VICTORY;
-      winner = getGameWinner();
+      winner = w;
     } else if (draw()) {
       status = MatchStatus.DRAW;
     }
@@ -399,6 +462,12 @@ public class GameBoard {
     if (m1.getMatchStatus() == MatchStatus.VICTORY &&
         m2.getMatchStatus() == MatchStatus.VICTORY &&
         m3.getMatchStatus() == MatchStatus.VICTORY) {
+      if (m1.getWinner() == null || m2.getWinner() == null || m3.getWinner() == null) {
+        return null;
+      }
+      if (m1.getWinner().getPiece() == null) {
+        return null;
+      }
       Piece winnerPiece = m1.getWinner().getPiece();
       if (winnerPiece.equals(m2.getWinner().getPiece()) &&
           winnerPiece.equals(m3.getWinner().getPiece())) {
@@ -417,6 +486,34 @@ public class GameBoard {
 
   public Player getCurrentPlayer() {
     return currentPlayer;
+  }
+
+  public void setCurrentPlayer(Player p) {
+    this.currentPlayer = p;
+  }
+
+  public void setTurn(Integer turn) {
+    this.turn = turn;
+  }
+
+  public void setWinner(Player winner) {
+    this.winner = winner;
+  }
+
+  public void setMatchFinished(boolean finished) {
+    this.matchFinished = finished;
+  }
+
+  public boolean isStarterP1() {
+    return starterIsP1;
+  }
+
+  public void setStarterIsP1(boolean starterIsP1) {
+    this.starterIsP1 = starterIsP1;
+  }
+
+  public Character getNoClockPiece() {
+    return noClockPiece;
   }
 
   public Integer getTurn() {

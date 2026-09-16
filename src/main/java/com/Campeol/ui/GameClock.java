@@ -31,7 +31,7 @@ public class GameClock {
       return;
     }
     long now = System.currentTimeMillis();
-    long delta = now - turnStart;
+    long delta = Math.max(0, now - turnStart);
     if (turnPiece == 'X') accX += delta;
     else if (turnPiece == 'O') accO += delta;
     turnStart = now;
@@ -42,20 +42,26 @@ public class GameClock {
     turnPiece = null;
   }
 
+  /** Congela sem acumular: usado para não contar o tempo do bot no rankeado. */
+  public void pause() {
+    turnPiece = null;
+    turnStart = System.currentTimeMillis();
+  }
+
   public long currentTurnMillis() {
     if (turnPiece == null) return 0;
-    return System.currentTimeMillis() - turnStart;
+    return Math.max(0, System.currentTimeMillis() - turnStart);
   }
 
   public long totalFor(char piece) {
     long base = (piece == 'X') ? accX : accO;
     if (turnPiece != null && turnPiece == piece) {
-      base += System.currentTimeMillis() - turnStart;
+      base += Math.max(0, System.currentTimeMillis() - turnStart);
     }
-    return base;
+    return Math.max(0, base);
   }
 
   public long matchMillis() {
-    return System.currentTimeMillis() - matchStart;
+    return Math.max(0, System.currentTimeMillis() - matchStart);
   }
 }

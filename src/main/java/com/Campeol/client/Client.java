@@ -9,10 +9,13 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 
+import java.io.ObjectInputFilter;
+
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
 import com.Campeol.net.NetException;
+import com.Campeol.net.NetLog;
 import com.Campeol.net.NetPoll;
 import com.Campeol.net.SslUtil;
 import com.Campeol.subgame.Match;
@@ -23,6 +26,7 @@ import com.Campeol.subgame.Match;
 public class Client {
   private ObjectOutputStream writer;
   private ObjectInputStream reader;
+  private volatile SSLSocket tcpSocket = null;
   private char clientPiece;
   /** Última escrita bem-sucedida (lida pela thread de heartbeat). */
   private volatile long lastWriteMillis = System.currentTimeMillis();
@@ -44,34 +48,97 @@ public class Client {
       } catch (Exception ignored) {
       }
     }
+    SSLSocket t = tcpSocket;
+    if (t != null && !t.isClosed()) {
+      try {
+        t.close();
+      } catch (Exception ignored) {
+      }
+    }
   }
 
   public Boolean start(int portNumber, String password) {
+    SSLSocket socket = null;
     try {
       InetAddress serverAddress = findIP();
+      if (cancelDiscovery) {
+        return false;
+      }
       if (serverAddress == null) {
         throw new NetException("Servidor nao encontrado");
       }
       SSLSocketFactory factory = SslUtil.getSocketFactory();
-      SSLSocket socket = (SSLSocket) factory.createSocket(serverAddress, portNumber);
+      socket = (SSLSocket) factory.createSocket(serverAddress, portNumber);
+      tcpSocket = socket;
       socket.setSoTimeout(500);
       writer = new ObjectOutputStream(socket.getOutputStream());
       writer.flush();
       reader = new ObjectInputStream(socket.getInputStream());
+      reader.setObjectInputFilter(buildFilter());
 
       try {
         if (!validatePassword(writer, reader, password)) {
           throw new NetException("Invalid Password");
         }
-        Boolean sorteio = (Boolean) reader.readObject();
-        clientPiece = (Character) reader.readObject();
+        Object o1 = reader.readObject();
+        Object o2 = reader.readObject();
+        if (!(o1 instanceof Boolean) || !(o2 instanceof Character)) {
+          throw new NetException("Handshake falhou: resposta invalida");
+        }
+        Boolean sorteio = (Boolean) o1;
+        clientPiece = (Character) o2;
+        if (clientPiece != 'X' && clientPiece != 'O') {
+          throw new NetException("Handshake falhou: peca invalida");
+        }
         return sorteio;
       } catch (ClassNotFoundException e) {
         throw new RuntimeException(e);
       }
     } catch (IOException e) {
+      close();
       throw new RuntimeException(e);
+    } catch (RuntimeException e) {
+      close();
+      throw e;
     }
+  }
+
+  /** Permite só classes do protocolo; bloqueia gadget-chain via desserialização. */
+  private static ObjectInputFilter buildFilter() {
+    return info -> {
+      Class<?> c = info.serialClass();
+      if (c == null) {
+        // arrays primitivos / null: decide pelo tamanho/profundidade
+        if (info.arrayLength() >= 0 && info.arrayLength() > 10000) {
+          return ObjectInputFilter.Status.REJECTED;
+        }
+        return ObjectInputFilter.Status.UNDECIDED;
+      }
+      String n = c.getName();
+      // Arrays (Match[][], Piece[][]): permite o array, elementos checados depois.
+      if (n.startsWith("[")) {
+        if (info.arrayLength() >= 0 && info.arrayLength() > 10000) {
+          return ObjectInputFilter.Status.REJECTED;
+        }
+        return ObjectInputFilter.Status.ALLOWED;
+      }
+      if (n.startsWith("com.Campeol.subgame.")
+          || n.startsWith("com.Campeol.ui.NetMessage")
+          || n.equals("java.lang.String")
+          || n.equals("java.lang.Boolean")
+          || n.equals("java.lang.Character")
+          || n.equals("java.lang.Integer")
+          || n.equals("java.lang.Number")
+          || n.equals("java.util.ArrayList")
+          || n.equals("java.lang.Object")
+          || n.startsWith("com.Campeol.MatchStatus")) {
+        return ObjectInputFilter.Status.ALLOWED;
+      }
+      if (n.startsWith("java.lang.") || n.startsWith("java.util.")) {
+        return ObjectInputFilter.Status.UNDECIDED;
+      }
+      return ObjectInputFilter.Status.REJECTED;
+    };
   }
 
   public char getClientPiece() {
@@ -118,7 +185,7 @@ public class Client {
         }
       } catch (IOException e) {
         if (!cancelDiscovery) {
-          e.printStackTrace();
+          NetLog.log("client discovery", e);
         }
       } finally {
         discoverySocket = null;
@@ -131,7 +198,7 @@ public class Client {
       }
     } catch (SocketException ex) {
       if (!cancelDiscovery) {
-        ex.printStackTrace();
+        NetLog.log("client discovery socket", ex);
       }
     }
     return null;
@@ -140,17 +207,18 @@ public class Client {
   private boolean validatePassword(ObjectOutputStream writer, ObjectInputStream reader, String password)
       throws IOException, ClassNotFoundException {
     writer.writeObject(password);
-    String check = (String) reader.readObject();
-    String pass = "pass";
-    if (check != null && check.equals(pass)) {
-      return true;
-    } else {
+    writer.flush();
+    Object reply = reader.readObject();
+    if (!(reply instanceof String)) {
       return false;
     }
+    String check = (String) reply;
+    String pass = "pass";
+    return check != null && check.equals(pass);
   }
 
-  public void send(Match match) {
-    sendObject(match);
+  public boolean send(Match match) {
+    return sendObject(match);
   }
 
   /**
@@ -160,6 +228,9 @@ public class Client {
    * @return true se escreveu com sucesso.
    */
   public synchronized boolean sendObject(Object o) {
+    if (writer == null) {
+      return false;
+    }
     try {
       writer.writeObject(o);
       writer.reset();
@@ -167,7 +238,7 @@ public class Client {
       lastWriteMillis = System.currentTimeMillis();
       return true;
     } catch (IOException e) {
-      e.printStackTrace();
+      NetLog.log("client send", e);
       return false;
     }
   }
@@ -181,6 +252,9 @@ public class Client {
    * (EOF/reset: peer saiu ou caiu).
    */
   public NetPoll pollObject() {
+    if (reader == null) {
+      return NetPoll.timeout();
+    }
     try {
       return NetPoll.ok(reader.readObject());
     } catch (java.net.SocketTimeoutException e) {
@@ -190,15 +264,37 @@ public class Client {
     } catch (java.net.SocketException e) {
       return NetPoll.disconnected();
     } catch (IOException e) {
-      e.printStackTrace();
+      NetLog.log("client poll io", e);
       return NetPoll.disconnected();
     } catch (ClassNotFoundException ex) {
-      ex.printStackTrace();
+      NetLog.log("client poll class", ex);
       return NetPoll.timeout();
     }
   }
 
+  public NetPoll pollObjectShort() {
+    SSLSocket s = tcpSocket;
+    if (reader == null || s == null || s.isClosed()) {
+      return NetPoll.timeout();
+    }
+    try {
+      s.setSoTimeout(20);
+    } catch (Exception ignored) {
+    }
+    try {
+      return pollObject();
+    } finally {
+      try {
+        s.setSoTimeout(500);
+      } catch (Exception ignored) {
+      }
+    }
+  }
+
   public Object receiveObject() {
+    if (reader == null) {
+      return null;
+    }
     try {
       return reader.readObject();
     } catch (java.net.SocketTimeoutException e) {
@@ -206,9 +302,9 @@ public class Client {
     } catch (java.io.EOFException e) {
       return null;
     } catch (IOException e) {
-      e.printStackTrace();
+      NetLog.log("client receive", e);
     } catch (ClassNotFoundException ex) {
-      ex.printStackTrace();
+      NetLog.log("client receive class", ex);
     }
     return null;
   }
@@ -229,6 +325,16 @@ public class Client {
       if (writer != null)
         writer.close();
     } catch (IOException e) {
+    }
+    reader = null;
+    writer = null;
+    SSLSocket t = tcpSocket;
+    tcpSocket = null;
+    if (t != null && !t.isClosed()) {
+      try {
+        t.close();
+      } catch (IOException ignored) {
+      }
     }
   }
 }
