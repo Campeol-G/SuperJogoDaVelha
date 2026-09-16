@@ -11,6 +11,8 @@ import com.googlecode.lanterna.graphics.TextGraphics;
 
 public class Match implements Serializable {
 
+  private static final long serialVersionUID = 1L;
+
   private Board board;
   private Player winner;
   private MatchStatus status;
@@ -30,8 +32,14 @@ public class Match implements Serializable {
   }
 
   public void makeMove(Player player, Position position) {
+    if (status != MatchStatus.IN_PROGRESS) {
+      throw new com.Campeol.subgame.exception.SubGameException(I18n.t("finished.game"));
+    }
+    if (player == null || position == null || position.getRow() == null || position.getColumn() == null) {
+      throw new com.Campeol.subgame.exception.SubGameException(I18n.t("invalid.pos"));
+    }
     board.placePiece(player, position);
-    this.lastMove = position;
+    this.lastMove = new Position(position.getRow(), position.getColumn());
     if (board.testEndGame()) {
       status = MatchStatus.VICTORY;
       winner = player;
@@ -110,6 +118,10 @@ public class Match implements Serializable {
 
   public MatchStatus getMatchStatus() {
     return status;
+  }
+
+  public Board getBoard() {
+    return board;
   }
 
   public void setMatchStatus(MatchStatus status) {

@@ -15,6 +15,22 @@ public final class HudView {
 
   public static void render(TextGraphics txt, Viewport vp, GameBoard gb, SessionScore score,
       Position destOrNull, boolean destIsFree, String turnLabel) {
+    render(txt, vp, gb, score, destOrNull, destIsFree, turnLabel, null, null, null);
+  }
+
+  public static void render(TextGraphics txt, Viewport vp, GameBoard gb, SessionScore score,
+      Position destOrNull, boolean destIsFree, String turnLabel,
+      String rankedLine1, String rankedLine2) {
+    render(txt, vp, gb, score, destOrNull, destIsFree, turnLabel, rankedLine1, rankedLine2, null);
+  }
+
+  /**
+   * @param rankedHumanPiece peça do humano no rankeado (exclui o timer do bot).
+   *        Null = modo normal (mostra X e O).
+   */
+  public static void render(TextGraphics txt, Viewport vp, GameBoard gb, SessionScore score,
+      Position destOrNull, boolean destIsFree, String turnLabel,
+      String rankedLine1, String rankedLine2, Character rankedHumanPiece) {
     int hx = vp.hudX();
     int hy = vp.getOriginY();
     int w = Viewport.HUD_W;
@@ -57,11 +73,20 @@ public final class HudView {
 
     putSep(txt, hx, y++, w);
 
-    // timers xadrez
+    // timers xadrez (no rankeado o bot não tem timer: só o humano)
     long tx = gb.getClock().totalFor('X');
     long to = gb.getClock().totalFor('O');
-    putLine(txt, lx, y++, trunc(I18n.t("timer.x") + " " + UiUtils.formatDuration(tx), maxW), Theme.X_FG, true);
-    putLine(txt, lx, y++, trunc(I18n.t("timer.o") + " " + UiUtils.formatDuration(to), maxW), Theme.O_FG, false);
+    if (rankedHumanPiece != null) {
+      char hp = rankedHumanPiece;
+      long th = gb.getClock().totalFor(hp);
+      TextColor fg = (hp == 'X') ? Theme.X_FG : Theme.O_FG;
+      boolean bold = true;
+      String key = (hp == 'X') ? I18n.t("timer.x") : I18n.t("timer.o");
+      putLine(txt, lx, y++, trunc(key + " " + UiUtils.formatDuration(th), maxW), fg, bold);
+    } else {
+      putLine(txt, lx, y++, trunc(I18n.t("timer.x") + " " + UiUtils.formatDuration(tx), maxW), Theme.X_FG, true);
+      putLine(txt, lx, y++, trunc(I18n.t("timer.o") + " " + UiUtils.formatDuration(to), maxW), Theme.O_FG, false);
+    }
     putLine(txt, lx, y++, trunc(I18n.t("timer.match") + " " + UiUtils.formatDuration(gb.getClock().matchMillis()), maxW),
         Theme.DIM_FG, false);
     putLine(txt, lx, y++, trunc(I18n.t("timer.turn") + " " + UiUtils.formatDuration(gb.getClock().currentTurnMillis()), maxW),
@@ -80,9 +105,34 @@ public final class HudView {
     putLine(txt, lx, y++, trunc("  " + I18n.t("score.o") + "  ·  " + wo, maxW), Theme.O_FG, oLead);
     putLine(txt, lx, y++, trunc("  " + I18n.t("score.draw") + "  ·  " + dr, maxW), Theme.DIM_FG, false);
 
+    if (rankedLine1 != null && !rankedLine1.isEmpty() && y + 1 < hy + h - 1) {
+      putSep(txt, hx, y++, w);
+      if (y < hy + h - 1) {
+        putLine(txt, lx, y++, trunc(rankedLine1, maxW), TextColor.ANSI.YELLOW_BRIGHT, true);
+      }
+      if (rankedLine2 != null && !rankedLine2.isEmpty() && y < hy + h - 2) {
+        putLine(txt, lx, y++, trunc(rankedLine2, maxW), Theme.DIM_FG, false);
+      }
+    }
+
     // status global sutil
-    if (gb.getStatus() != MatchStatus.IN_PROGRESS) {
-      putLine(txt, lx, y++, trunc(gb.getStatus().toString(), maxW), TextColor.ANSI.WHITE_BRIGHT, true);
+    if (gb.getStatus() != MatchStatus.IN_PROGRESS && y < hy + h - 2) {
+      String st;
+      switch (gb.getStatus()) {
+        case VICTORY:
+          st = I18n.t("victory.label");
+          break;
+        case DRAW:
+          st = I18n.t("draw.label");
+          break;
+        case INTERRUPTED:
+          st = I18n.t("end.interrupted");
+          break;
+        default:
+          st = gb.getStatus().toString();
+          break;
+      }
+      putLine(txt, lx, y++, trunc(st, maxW), TextColor.ANSI.WHITE_BRIGHT, true);
     }
 
     // preenche resto e dica no rodapé do HUD

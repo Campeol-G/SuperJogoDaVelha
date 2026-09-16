@@ -42,16 +42,18 @@ public class OnlineGame {
     return server.getServerPiece();
   }
 
-  public void getSendServer(Match match) {
-    server.send(match);
+  public boolean getSendServer(Match match) {
+    if (server == null) return false;
+    return server.send(match);
   }
 
   public Match getReceiveServer() {
     return server.receive();
   }
 
-  public void sendServerObject(Object o) {
-    server.sendObject(o);
+  public boolean sendServerObject(Object o) {
+    if (server == null) return false;
+    return server.sendObject(o);
   }
 
   public Object receiveServerObject() {
@@ -59,7 +61,13 @@ public class OnlineGame {
   }
 
   public NetPoll pollServer() {
+    if (server == null) return NetPoll.timeout();
     return server.pollObject();
+  }
+
+  public NetPoll pollServerShort() {
+    if (server == null) return NetPoll.timeout();
+    return server.pollObjectShort();
   }
 
   public Boolean getInTheGame(String password) {
@@ -71,16 +79,18 @@ public class OnlineGame {
     return client.getClientPiece();
   }
 
-  public void getSendClient(Match match) {
-    client.send(match);
+  public boolean getSendClient(Match match) {
+    if (client == null) return false;
+    return client.send(match);
   }
 
   public Match getReceiveClient() {
     return client.receive();
   }
 
-  public void sendClientObject(Object o) {
-    client.sendObject(o);
+  public boolean sendClientObject(Object o) {
+    if (client == null) return false;
+    return client.sendObject(o);
   }
 
   public Object receiveClientObject() {
@@ -88,7 +98,13 @@ public class OnlineGame {
   }
 
   public NetPoll pollClient() {
+    if (client == null) return NetPoll.timeout();
     return client.pollObject();
+  }
+
+  public NetPoll pollClientShort() {
+    if (client == null) return NetPoll.timeout();
+    return client.pollObjectShort();
   }
 
   /** Marca prova de vida (qualquer objeto recebido vale como heartbeat). */

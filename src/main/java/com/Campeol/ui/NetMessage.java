@@ -7,6 +7,8 @@ import java.io.Serializable;
  * Trafega no mesmo ObjectStream que o Match.
  */
 public class NetMessage implements Serializable {
+  private static final long serialVersionUID = 1L;
+
   public enum Type {
     REMATCH_REQUEST,
     REMATCH_ACCEPT,

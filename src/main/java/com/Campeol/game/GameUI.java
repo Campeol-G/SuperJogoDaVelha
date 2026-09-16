@@ -3,6 +3,9 @@ package com.Campeol.game;
 import java.io.IOException;
 
 import com.Campeol.MatchStatus;
+import com.Campeol.net.NetException;
+import com.Campeol.net.NetLog;
+import com.Campeol.net.NetPoll;
 import com.Campeol.subgame.Match;
 import com.Campeol.subgame.Position;
 import com.Campeol.ui.ConfigOverlay;
@@ -10,6 +13,7 @@ import com.Campeol.ui.EndScreen;
 import com.Campeol.ui.HelpOverlay;
 import com.Campeol.ui.HudView;
 import com.Campeol.ui.I18n;
+import com.Campeol.ui.NetMessage;
 import com.Campeol.ui.ProfileStore;
 import com.Campeol.ui.SessionScore;
 import com.Campeol.ui.Theme;
@@ -42,6 +46,19 @@ public class GameUI implements AutoCloseable {
   private boolean onlineMode = false;
   private String localNick = null;
   private String opponentNick = null;
+  /** Peça local no online (para mapear peça->nick). Null = desconhecida. */
+  private Character localPiece = null;
+
+  private boolean rankedMode = false;
+  private com.Campeol.ui.RankedProfile rankedProfile = null;
+  private boolean botThinking = false;
+  /** Peça do humano no rankeado (para esconder o timer do bot). Null = n/a. */
+  private Character rankedHumanPiece = null;
+
+  private transient OnlineGame onlineGame = null;
+  private transient boolean onlineIsServer = true;
+  private transient Match stashedOnlineMatch = null;
+  private volatile boolean escPending = false;
 
   /** Quem encerrou a partida online (INTERRUPTED sozinho não diz quem saiu). */
   public enum LeaveReason {
@@ -66,6 +83,117 @@ public class GameUI implements AutoCloseable {
 
   public void resetLeaveReason() {
     this.leaveReason = LeaveReason.NONE;
+  }
+
+  public void setOnlineGame(OnlineGame og, boolean isServer) {
+    this.onlineGame = og;
+    this.onlineIsServer = isServer;
+    this.stashedOnlineMatch = null;
+  }
+
+  public void clearOnlineGame() {
+    this.onlineGame = null;
+    this.stashedOnlineMatch = null;
+  }
+
+  public Match takeStashedOnlineMatch() {
+    Match m = stashedOnlineMatch;
+    stashedOnlineMatch = null;
+    return m;
+  }
+
+  public boolean consumeEscPending() {
+    boolean v = escPending;
+    escPending = false;
+    return v;
+  }
+
+  private void noteEscPending() {
+    escPending = true;
+  }
+
+  private boolean checkOnlineInboxShort() {
+    if (!onlineMode || onlineGame == null) {
+      return gb.getStatus() != MatchStatus.IN_PROGRESS;
+    }
+    if (gb.getStatus() != MatchStatus.IN_PROGRESS) {
+      return true;
+    }
+    NetPoll p;
+    try {
+      p = onlineIsServer ? onlineGame.pollServerShort() : onlineGame.pollClientShort();
+    } catch (Exception e) {
+      NetLog.log("checkOnlineInboxShort poll", e);
+      return false;
+    }
+    if (p == null) {
+      return false;
+    }
+    if (p.kind() == NetPoll.Kind.OK) {
+      try {
+        onlineGame.touch();
+      } catch (Exception ignored) {
+      }
+      Object o = p.payload();
+      if (o instanceof NetMessage) {
+        NetMessage nm = (NetMessage) o;
+        if (nm.getType() == null) {
+          NetLog.log("checkOnlineInboxShort NetMessage sem tipo");
+          return false;
+        }
+        if (nm.getType() == NetMessage.Type.NICK && nm.getPayload() != null) {
+          opponentNick = nm.getPayload();
+          return false;
+        }
+        if (nm.getType() == NetMessage.Type.QUIT) {
+          leaveReason = LeaveReason.PEER_QUIT;
+          gb.setGameStatus(MatchStatus.INTERRUPTED);
+          try {
+            gb.getClock().stop();
+          } catch (Exception ignored) {
+          }
+          return true;
+        }
+        return false;
+      }
+      if (o instanceof Match) {
+        if (stashedOnlineMatch == null) {
+          stashedOnlineMatch = (Match) o;
+        } else {
+          // Segundo Match antes de consumir o primeiro: descarta com log
+          // (não deveria acontecer em jogo por turnos; indica retransmissão/bug).
+          NetLog.log("checkOnlineInboxShort descarta Match duplicado");
+        }
+        return false;
+      }
+      return false;
+    }
+    if (p.kind() == NetPoll.Kind.DISCONNECTED) {
+      if (leaveReason == LeaveReason.NONE) {
+        leaveReason = LeaveReason.PEER_LOST;
+      }
+      gb.setGameStatus(MatchStatus.INTERRUPTED);
+      try {
+        gb.getClock().stop();
+      } catch (Exception ignored) {
+      }
+      return true;
+    }
+    try {
+      if (onlineGame.isPeerDead()) {
+        if (leaveReason == LeaveReason.NONE) {
+          leaveReason = LeaveReason.PEER_LOST;
+        }
+        gb.setGameStatus(MatchStatus.INTERRUPTED);
+        try {
+          gb.getClock().stop();
+        } catch (Exception ignored) {
+        }
+        return true;
+      }
+    } catch (Exception ignored) {
+    }
+    return gb.getStatus() != MatchStatus.IN_PROGRESS;
   }
   // Chamado quando o nick local muda no meio da partida (config "1").
   // O App registra aqui o envio da mensagem NICK ao oponente.
@@ -112,7 +240,7 @@ public class GameUI implements AutoCloseable {
     try {
       terminal.setCursorVisible(false);
     } catch (Exception e) {
-      System.err.println("warn: cannot hide cursor: " + e.getMessage());
+      NetLog.log("hide cursor", e);
     }
   }
 
@@ -125,6 +253,7 @@ public class GameUI implements AutoCloseable {
   // ---------- menu principal (Lanterna nativo) ----------
   public enum MainChoice {
     LOCAL,
+    RANKED,
     CREATE,
     JOIN,
     CONFIG,
@@ -147,6 +276,7 @@ public class GameUI implements AutoCloseable {
       String title = menuTitle();
       String[] labels = {
           I18n.t("menu.local"),
+          I18n.t("menu.ranked"),
           I18n.t("menu.create"),
           I18n.t("menu.join"),
           I18n.t("menu.config"),
@@ -295,10 +425,10 @@ public class GameUI implements AutoCloseable {
       screen.clear();
       int cols = terminal.getTerminalSize().getColumns();
       int rows = terminal.getTerminalSize().getRows();
-      String title = "Escolha o idioma / Choose language";
-      String o1 = "1 - Portugues";
-      String o2 = "2 - English";
-      String hint = "Use 1/2 ou setas + Enter / Use 1/2 or arrows + Enter";
+      String title = I18n.t("lang.title");
+      String o1 = I18n.t("lang.pt");
+      String o2 = I18n.t("lang.en");
+      String hint = I18n.t("lang.hint");
       int w = Math.max(title.length(), hint.length()) + 6;
       int h = 9;
       int x0 = Math.max(0, (cols - w) / 2);
@@ -426,6 +556,64 @@ public class GameUI implements AutoCloseable {
 
   public void setOnlineMode(boolean online) {
     this.onlineMode = online;
+    if (online) {
+      this.rankedMode = false;
+    } else {
+      // Saiu do online: não polir socket velho no próximo jogo local.
+      this.onlineGame = null;
+      this.stashedOnlineMatch = null;
+    }
+  }
+
+  public void setRankedMode(boolean ranked) {
+    this.rankedMode = ranked;
+    if (ranked) {
+      this.onlineMode = false;
+    } else {
+      this.rankedHumanPiece = null;
+    }
+  }
+
+  public void setRankedHumanPiece(Character piece) {
+    this.rankedHumanPiece = piece;
+  }
+
+  public Character getRankedHumanPiece() {
+    return rankedHumanPiece;
+  }
+
+  private Character rankedHumanPieceForHud() {
+    return (rankedMode && rankedHumanPiece != null) ? rankedHumanPiece : null;
+  }
+
+  public boolean isRankedMode() {
+    return rankedMode;
+  }
+
+  public void setRankedProfile(com.Campeol.ui.RankedProfile p) {
+    this.rankedProfile = p;
+  }
+
+  public com.Campeol.ui.RankedProfile getRankedProfile() {
+    return rankedProfile;
+  }
+
+  public void setBotThinking(boolean thinking) {
+    this.botThinking = thinking;
+  }
+
+  private String rankedHudLine() {
+    if (!rankedMode || rankedProfile == null) return null;
+    return rankedProfile.hudLine();
+  }
+
+  private String rankedBarLine() {
+    if (!rankedMode || rankedProfile == null) return null;
+    if (botThinking) {
+      String bot = com.Campeol.ui.BotNames.name(rankedProfile.getLevel());
+      return I18n.t("ranked.thinking", bot) + "  |  " + rankedProfile.progressBar();
+    }
+    return rankedProfile.progressBar();
   }
 
   public void setLocalNick(String nick) {
@@ -438,6 +626,30 @@ public class GameUI implements AutoCloseable {
 
   public String getLocalNick() {
     return localNick;
+  }
+
+  public String getOpponentNick() {
+    return opponentNick;
+  }
+
+  public void setLocalPiece(Character piece) {
+    this.localPiece = piece;
+  }
+
+  public Character getLocalPiece() {
+    return localPiece;
+  }
+
+  /** Mapeia peça -> nick no online (só nick, sem peça, conforme pedido). */
+  private String nickForPiece(char piece) {
+    String you = (localNick != null && !localNick.isEmpty() ? localNick : I18n.t("nick.you"));
+    String opp = (opponentNick != null && !opponentNick.isEmpty() ? opponentNick : I18n.t("nick.opp"));
+    if (localPiece != null) {
+      if (piece == localPiece) return you;
+      return opp;
+    }
+    // Sem mapeamento: fallback para a peça (evita mostrar nick errado).
+    return String.valueOf(piece);
   }
 
   public SessionScore getSessionScore() {
@@ -455,18 +667,10 @@ public class GameUI implements AutoCloseable {
   }
 
   private String turnLabel() {
-    if (gb.getCurrentPlayer() == null) return "--";
+    if (gb.getCurrentPlayer() == null || gb.getCurrentPlayer().getPiece() == null) return "--";
     char piece = gb.getCurrentPlayer().getPiece().getXorO();
     if (onlineMode) {
-      // o nick local só aparece quando é a vez dele; senão mostra oponente.
-      // Como não sabemos de quem é a peça local sem handshake extra,
-      // App define localNick/opponentNick e a peça local via setLocalPiece? Simplificação:
-      // mostra nick + peça quando disponível.
-      String you = (localNick != null ? localNick : I18n.t("nick.you"));
-      String opp = (opponentNick != null ? opponentNick : I18n.t("nick.opp"));
-      // Heurística: se o turno atual é após receiveOpponentMove, é nossa vez.
-      // App atualiza labels via setTurnLabelOverride? Mantemos genérico:
-      return String.format("%s (%c)", you + " / " + opp, piece);
+      return nickForPiece(piece);
     }
     return String.valueOf(piece);
   }
@@ -484,7 +688,7 @@ public class GameUI implements AutoCloseable {
     screen.clear();
     gb.renderAllGames(txt, vp.getOriginX(), vp.getOriginY(), -1, -1, null, -1, -1, null);
     String label = onlineMode ? turnLabel() : localTurnLabel();
-    HudView.render(txt, vp, gb, sessionScore, lastDest, lastDestFree, label);
+    HudView.render(txt, vp, gb, sessionScore, lastDest, lastDestFree, label, rankedHudLine(), null, rankedHumanPieceForHud());
     drawFooter(vp);
     refresh();
   }
@@ -494,7 +698,7 @@ public class GameUI implements AutoCloseable {
     screen.clear();
     gb.renderAllGames(txt, vp.getOriginX(), vp.getOriginY(), selR, selC, null, -1, -1, null);
     String label = onlineMode ? turnLabel() : localTurnLabel();
-    HudView.render(txt, vp, gb, sessionScore, null, true, label);
+    HudView.render(txt, vp, gb, sessionScore, null, true, label, rankedHudLine(), null, rankedHumanPieceForHud());
     // silêncio total: sem dica persistente (destino já está no HUD + highlight)
     drawFooter(vp);
     refresh();
@@ -506,7 +710,7 @@ public class GameUI implements AutoCloseable {
     gb.renderAllGames(txt, vp.getOriginX(), vp.getOriginY(), -1, -1, active, selR, selC, null);
     String label = onlineMode ? turnLabel() : localTurnLabel();
     Position dest = new Position(active.getGridRow(), active.getGridCol());
-    HudView.render(txt, vp, gb, sessionScore, dest, false, label);
+    HudView.render(txt, vp, gb, sessionScore, dest, false, label, rankedHudLine(), null, rankedHumanPieceForHud());
     // silêncio total: sem aviso de destino (HUD Destino + highlight já mostram)
     drawFooter(vp);
     refresh();
@@ -521,8 +725,11 @@ public class GameUI implements AutoCloseable {
     int my = vp.messageY();
     // Só a linha de mensagem — a dica [?]/[Esc]/[C] vive apenas no HUD lateral.
     UiUtils.clearRect(txt, fx, my, Viewport.TOTAL_W, 1);
-    String line1 = transientMsg != null ? transientMsg : (info != null ? info : "");
-    if (!line1.isEmpty()) {
+    String line1 = transientMsg != null ? transientMsg : (info != null ? info : null);
+    if ((line1 == null || line1.isEmpty()) && rankedMode && rankedProfile != null) {
+      line1 = rankedBarLine();
+    }
+    if (line1 != null && !line1.isEmpty()) {
       txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
       txt.enableModifiers(SGR.BOLD);
       txt.putString(fx, my, line1.length() > Viewport.TOTAL_W ? line1.substring(0, Viewport.TOTAL_W) : line1);
@@ -562,6 +769,10 @@ public class GameUI implements AutoCloseable {
     Character c = k.getCharacter();
     boolean isHelp = (c != null && (c == '?' || c == 'h' || c == 'H'));
     if (!isHelp) return;
+    if (rankedMode) {
+      openRankedHelpTransient();
+      return;
+    }
     Viewport vp = currentViewport();
     HelpOverlay.show(screen, txt, vp);
     // espera fechar
@@ -571,6 +782,35 @@ public class GameUI implements AutoCloseable {
       Character c2 = k2.getCharacter();
       if (k2.getKeyType() == KeyType.Escape) break;
       if (c2 != null && (c2 == '?' || c2 == 'h' || c2 == 'H')) break;
+    }
+    transientMsg = null;
+    render();
+  }
+
+  /** Tutorial do rankeado via '?' no meio da partida (? de novo = ajuda geral). */
+  private void openRankedHelpTransient() throws IOException, InterruptedException {
+    com.Campeol.ui.RankedHelpOverlay.show(screen, txt);
+    refresh();
+    while (true) {
+      KeyStroke k2 = screen.readInput();
+      if (k2 == null) continue;
+      if (k2.getKeyType() == KeyType.Escape) break;
+      if (k2.getKeyType() == KeyType.Enter) break;
+      Character c2 = k2.getCharacter();
+      if (c2 != null && (c2 == '?' || c2 == 'h' || c2 == 'H')) {
+        Viewport vp = currentViewport();
+        HelpOverlay.show(screen, txt, vp);
+        refresh();
+        while (true) {
+          KeyStroke k3 = screen.readInput();
+          if (k3 == null) continue;
+          if (k3.getKeyType() == KeyType.Escape) break;
+          if (k3.getKeyType() == KeyType.Enter) break;
+          Character c3 = k3.getCharacter();
+          if (c3 != null && (c3 == '?' || c3 == 'h' || c3 == 'H')) break;
+        }
+        break;
+      }
     }
     transientMsg = null;
     render();
@@ -591,9 +831,32 @@ public class GameUI implements AutoCloseable {
     }
   }
 
+  /**
+   * Tutorial do rankeado na entrada do modo.
+   * Retorna true se Enter (jogar), false se Esc (voltar ao menu).
+   */
+  public boolean showRankedHelpBlocking() throws IOException, InterruptedException {
+    waitForEnoughSize();
+    screen.clear();
+    com.Campeol.ui.RankedHelpOverlay.show(screen, txt);
+    refresh();
+    while (true) {
+      KeyStroke k = screen.readInput();
+      if (k == null) continue;
+      if (k.getKeyType() == KeyType.Escape) return false;
+      if (k.getKeyType() == KeyType.Enter) return true;
+      Character c = k.getCharacter();
+      if (c != null) {
+        char u = Character.toUpperCase(c);
+        if (u == 'Q' || u == 'N') return false;
+        if (u == 'Y' || u == 'S') return true;
+      }
+    }
+  }
+
   /** Tela de espera (ex. buscando servidor). Sem entrada. */
   public void showWaiting(String messageKey) throws IOException, InterruptedException {
-    showWaiting(messageKey, null);
+    showWaiting(messageKey);
   }
 
   /**
@@ -681,10 +944,20 @@ public class GameUI implements AutoCloseable {
     refresh();
     long end = System.currentTimeMillis() + ms;
     while (System.currentTimeMillis() < end) {
-      screen.pollInput();
+      KeyStroke tk = screen.pollInput();
+      if (tk != null && tk.getKeyType() == KeyType.Escape) {
+        noteEscPending();
+      }
       Thread.sleep(50);
     }
-    while (screen.pollInput() != null) {
+    while (true) {
+      KeyStroke dk = screen.pollInput();
+      if (dk == null) {
+        break;
+      }
+      if (dk.getKeyType() == KeyType.Escape) {
+        noteEscPending();
+      }
     }
   }
 
@@ -761,11 +1034,20 @@ public class GameUI implements AutoCloseable {
   /** Prepara tabuleiro zerado para uma nova sessão (menu → jogo). */
   public void resetForNewGame() {
     gb.startAllGames();
-    gb.setGameStatus(MatchStatus.IN_PROGRESS);
+    gb.clearResult();
     lastDest = null;
     lastDestFree = true;
     transientMsg = null;
     resetLeaveReason();
+    escPending = false;
+    stashedOnlineMatch = null;
+    botThinking = false;
+    localPiece = null;
+  }
+
+  /** Zera o placar da sessão (troca de modo: local/rankeado/online). */
+  public void clearSessionScore() {
+    sessionScore.clear();
   }
 
   public void openConfig() throws IOException, InterruptedException {
@@ -799,6 +1081,20 @@ public class GameUI implements AutoCloseable {
           ConfigOverlay.show(screen, txt);
           continue;
         }
+        if (u == '3') {
+          com.Campeol.ui.RankedProfile r = rankedProfile != null
+              ? rankedProfile
+              : com.Campeol.ui.RankedProfile.load();
+          r.reset();
+          r.save();
+          if (rankedProfile != null) {
+            // atualiza referência vigente
+            rankedProfile.reset();
+          }
+          toast("ranked.reset", 1500);
+          ConfigOverlay.show(screen, txt);
+          continue;
+        }
       }
     }
     transientMsg = null;
@@ -824,7 +1120,7 @@ public class GameUI implements AutoCloseable {
     last[0] = now;
     // re-render leve: só HUD + footer (board já está na tela)
     String label = onlineMode ? turnLabel() : localTurnLabel();
-    HudView.render(txt, vp, gb, sessionScore, lastDest, lastDestFree, label);
+    HudView.render(txt, vp, gb, sessionScore, lastDest, lastDestFree, label, rankedHudLine(), null, rankedHumanPieceForHud());
     drawFooter(vp);
     refresh();
   }
@@ -842,9 +1138,30 @@ public class GameUI implements AutoCloseable {
     KeyStroke keyPressed = null;
 
     while (true) {
+      // ESC preservado de holdMessage/toast anterior: online sai direto,
+      // local/rankeado abre menu (Sair e salvar / Desistir).
+      if (consumeEscPending()) {
+        if (onlineMode) {
+          gb.setGameStatus(MatchStatus.INTERRUPTED);
+          gb.getClock().stop();
+          return null;
+        }
+        boolean done = handleEscInGame();
+        if (done) return null;
+        match = gb.getGamePlaces(row, column);
+        renderWithBigSel(row, column);
+        continue;
+      }
+      if (gb.getStatus() != MatchStatus.IN_PROGRESS) {
+        return null;
+      }
       // poll com timeout para atualizar timers do HUD (xadrez)
       KeyStroke k = screen.pollInput();
       if (k == null) {
+        // Online: peer pode ter dado ESC enquanto pensamos — detecta sem bloquear.
+        if (checkOnlineInboxShort()) {
+          return null;
+        }
         refreshHudThrottle(lastHud);
         Thread.sleep(80);
         continue;
@@ -864,9 +1181,16 @@ public class GameUI implements AutoCloseable {
         continue;
       }
       if (k.getKeyType() == KeyType.Escape) {
-        gb.setGameStatus(MatchStatus.INTERRUPTED);
-        gb.getClock().stop();
-        return null;
+        if (onlineMode) {
+          gb.setGameStatus(MatchStatus.INTERRUPTED);
+          gb.getClock().stop();
+          return null;
+        }
+        boolean done = handleEscInGame();
+        if (done) return null;
+        match = gb.getGamePlaces(row, column);
+        renderWithBigSel(row, column);
+        continue;
       }
       if (k.getKeyType() == KeyType.Enter) {
         match = gb.getGamePlaces(row, column);
@@ -903,21 +1227,33 @@ public class GameUI implements AutoCloseable {
   private String holdMessage(long ms) throws IOException, InterruptedException {
     long end = System.currentTimeMillis() + ms;
     while (System.currentTimeMillis() < end) {
-      if (screen.pollInput() != null) break;
+      KeyStroke hk = screen.pollInput();
+      if (hk != null) {
+        if (hk.getKeyType() == KeyType.Escape) {
+          noteEscPending();
+        }
+        break;
+      }
       // mensagem estática + timers de 1s: 250ms basta (50ms redesenhava ~20x/s à toa)
       Thread.sleep(250);
       // mantém timers vivos
       try {
         Viewport vp = currentViewport();
         String label = onlineMode ? turnLabel() : localTurnLabel();
-        HudView.render(txt, vp, gb, sessionScore, lastDest, lastDestFree, label);
+        HudView.render(txt, vp, gb, sessionScore, lastDest, lastDestFree, label, rankedHudLine(), null, rankedHumanPieceForHud());
         drawFooter(vp);
         refresh();
       } catch (Exception ignored) {
       }
     }
-    // drena inputs durante a mensagem para não digitarem no próximo estado
-    while (screen.pollInput() != null) {
+    while (true) {
+      KeyStroke dk = screen.pollInput();
+      if (dk == null) {
+        break;
+      }
+      if (dk.getKeyType() == KeyType.Escape) {
+        noteEscPending();
+      }
     }
     return null;
   }
@@ -935,8 +1271,25 @@ public class GameUI implements AutoCloseable {
     long[] lastHud = { 0 };
 
     while (true) {
+      if (consumeEscPending()) {
+        if (onlineMode) {
+          gb.setGameStatus(MatchStatus.INTERRUPTED);
+          gb.getClock().stop();
+          return null;
+        }
+        boolean done = handleEscInGame();
+        if (done) return null;
+        renderWithCellSel(match, row, column);
+        continue;
+      }
+      if (gb.getStatus() != MatchStatus.IN_PROGRESS) {
+        return null;
+      }
       KeyStroke k = screen.pollInput();
       if (k == null) {
+        if (checkOnlineInboxShort()) {
+          return null;
+        }
         refreshHudThrottle(lastHud);
         // re-desenha seleção para manter highlight mesmo com refresh do HUD
         Thread.sleep(80);
@@ -954,9 +1307,15 @@ public class GameUI implements AutoCloseable {
         continue;
       }
       if (k.getKeyType() == KeyType.Escape) {
-        gb.setGameStatus(MatchStatus.INTERRUPTED);
-        gb.getClock().stop();
-        return null;
+        if (onlineMode) {
+          gb.setGameStatus(MatchStatus.INTERRUPTED);
+          gb.getClock().stop();
+          return null;
+        }
+        boolean done = handleEscInGame();
+        if (done) return null;
+        renderWithCellSel(match, row, column);
+        continue;
       }
       if (k.getKeyType() == KeyType.Enter) {
         pos.setPosition(row, column);
@@ -991,8 +1350,114 @@ public class GameUI implements AutoCloseable {
   }
 
   public void receiveOpponentMove(Match receivedMatch) throws IOException, InterruptedException {
+    if (receivedMatch == null) {
+      throw new NetException("Jogada invalida recebida");
+    }
     int gridRow = receivedMatch.getGridRow();
     int gridCol = receivedMatch.getGridCol();
+    if (gridRow < 0 || gridRow > 2 || gridCol < 0 || gridCol > 2) {
+      NetLog.log("receiveOpponentMove grid fora: " + gridRow + "," + gridCol);
+      throw new NetException(I18n.t("invalid.pos"));
+    }
+    if (receivedMatch.getBoard() == null) {
+      throw new NetException(I18n.t("invalid.pos"));
+    }
+    com.Campeol.subgame.Position lm = receivedMatch.getLastMove();
+    if (lm != null) {
+      if (lm.getRow() == null || lm.getColumn() == null
+          || lm.getRow() < 0 || lm.getRow() > 2 || lm.getColumn() < 0 || lm.getColumn() > 2) {
+        NetLog.log("receiveOpponentMove lastMove fora");
+        throw new NetException(I18n.t("invalid.pos"));
+      }
+    }
+    // Valida delta contra o estado local: exatamente 1 peça nova, sem remover/trocar.
+    Match old;
+    try {
+      old = gb.getGamePlaces(gridRow, gridCol);
+    } catch (Exception e) {
+      throw new NetException(I18n.t("invalid.pos"));
+    }
+    if (old == null || old.getBoard() == null) {
+      throw new NetException(I18n.t("invalid.pos"));
+    }
+    // Não aceita sobrescrever mini já finalizado localmente (evita roubo de mini).
+    if (old.getMatchStatus() != MatchStatus.IN_PROGRESS) {
+      NetLog.log("receiveOpponentMove mini local finalizado: " + gridRow + "," + gridCol);
+      throw new NetException(I18n.t("finished.game"));
+    }
+    int diffs = 0;
+    int diffR = -1;
+    int diffC = -1;
+    for (int r = 0; r < 3; r++) {
+      for (int c = 0; c < 3; c++) {
+        com.Campeol.subgame.Piece a = old.getBoard().getPiece(r, c);
+        com.Campeol.subgame.Piece b = receivedMatch.getBoard().getPiece(r, c);
+        if (a == null && b == null) continue;
+        if (a == null && b != null) {
+          diffs++;
+          diffR = r;
+          diffC = c;
+          // peça nova deve ser X/O válido
+          if (b.getXorO() != 'X' && b.getXorO() != 'O') {
+            throw new NetException(I18n.t("invalid.pos"));
+          }
+          // deve ser a peça de quem tinha a vez (oponente)
+          try {
+            if (gb.getCurrentPlayer() != null && gb.getCurrentPlayer().getPiece() != null
+                && b.getXorO() != gb.getCurrentPlayer().getPiece().getXorO()) {
+              NetLog.log("receiveOpponentMove peca inesperada: " + b.getXorO());
+              throw new NetException(I18n.t("invalid.pos"));
+            }
+          } catch (NetException ne) {
+            throw ne;
+          } catch (Exception ignored) {
+          }
+        } else if (a != null && b == null) {
+          NetLog.log("receiveOpponentMove removeu peca");
+          throw new NetException(I18n.t("invalid.pos"));
+        } else {
+          // ambos presentes: peça não pode mudar
+          if (a.getXorO() != b.getXorO()) {
+            NetLog.log("receiveOpponentMove trocou peca");
+            throw new NetException(I18n.t("invalid.pos"));
+          }
+        }
+      }
+    }
+    if (diffs != 1) {
+      NetLog.log("receiveOpponentMove diffs=" + diffs);
+      throw new NetException(I18n.t("invalid.pos"));
+    }
+    if (lm != null && (lm.getRow() != diffR || lm.getColumn() != diffC)) {
+      NetLog.log("receiveOpponentMove lastMove diverge do delta");
+      throw new NetException(I18n.t("invalid.pos"));
+    }
+    // Recomputa status do mini a partir do tabuleiro; não confia no serializado.
+    boolean win = receivedMatch.getBoard().testEndGame();
+    boolean full = receivedMatch.getBoard().isFull();
+    MatchStatus expected = win ? MatchStatus.VICTORY
+        : (full ? MatchStatus.DRAW : MatchStatus.IN_PROGRESS);
+    if (receivedMatch.getMatchStatus() != expected) {
+      NetLog.log("receiveOpponentMove corrige status " + receivedMatch.getMatchStatus()
+          + " -> " + expected);
+      receivedMatch.setMatchStatus(expected);
+    }
+    if (expected == MatchStatus.VICTORY) {
+      // vencedor deve existir e ser da peça jogada; se ausente/inválido, deriva do delta
+      boolean winnerOk = receivedMatch.getWinner() != null
+          && receivedMatch.getWinner().getPiece() != null
+          && (receivedMatch.getWinner().getPiece().getXorO() == 'X'
+              || receivedMatch.getWinner().getPiece().getXorO() == 'O');
+      if (!winnerOk) {
+        NetLog.log("receiveOpponentMove winner ausente/invalido");
+        throw new NetException(I18n.t("invalid.pos"));
+      }
+      com.Campeol.subgame.Piece placed = receivedMatch.getBoard().getPiece(diffR, diffC);
+      if (placed != null && placed.getXorO() != receivedMatch.getWinner().getPiece().getXorO()) {
+        NetLog.log("receiveOpponentMove winner diverge da peca jogada");
+        throw new NetException(I18n.t("invalid.pos"));
+      }
+    }
     gb.setGamePlaces(gridRow, gridCol, receivedMatch);
     if (receivedMatch.getMatchStatus() != MatchStatus.IN_PROGRESS) {
       render();
@@ -1007,6 +1472,13 @@ public class GameUI implements AutoCloseable {
 
   public Match changeMatch(Position pos) throws IOException, InterruptedException {
     if (pos == null) {
+      lastDestFree = true;
+      lastDest = null;
+      return bigMove();
+    }
+    if (pos.getRow() == null || pos.getColumn() == null
+        || pos.getRow() < 0 || pos.getRow() > 2 || pos.getColumn() < 0 || pos.getColumn() > 2) {
+      NetLog.log("changeMatch pos fora");
       lastDestFree = true;
       lastDest = null;
       return bigMove();
@@ -1043,13 +1515,10 @@ public class GameUI implements AutoCloseable {
   }
 
   public String winnerLabel() {
-    if (gb.getWinner() != null) {
+    if (gb.getWinner() != null && gb.getWinner().getPiece() != null) {
       char p = gb.getWinner().getPiece().getXorO();
       if (onlineMode) {
-        // sem mapeamento peça->nick confiável, mostra peça + nicks
-        String you = localNick != null ? localNick : I18n.t("nick.you");
-        String opp = opponentNick != null ? opponentNick : I18n.t("nick.opp");
-        return p + " (" + you + "/" + opp + ")";
+        return nickForPiece(p);
       }
       return String.valueOf(p);
     }
@@ -1057,6 +1526,10 @@ public class GameUI implements AutoCloseable {
   }
 
   public EndScreen.Result endGame() throws IOException, InterruptedException {
+    return endGameWithExtra(null);
+  }
+
+  public EndScreen.Result endGameWithExtra(String extra) throws IOException, InterruptedException {
     gb.getClock().stop();
     // desenha board final de fundo rapidamente e depois o modal
     try {
@@ -1064,7 +1537,7 @@ public class GameUI implements AutoCloseable {
     } catch (Exception ignored) {
     }
     long matchMs = gb.getClock().matchMillis();
-    EndScreen.draw(screen, txt, gb.getStatus(), winnerLabel(), sessionScore, matchMs, null);
+    EndScreen.draw(screen, txt, gb.getStatus(), winnerLabel(), sessionScore, matchMs, extra);
     // espera R / Esc (local). Online usa handshake separado via App.
     while (true) {
       KeyStroke k = screen.readInput();
@@ -1080,12 +1553,315 @@ public class GameUI implements AutoCloseable {
     }
   }
 
-  /** Nova rodada alternando quem começa (revanche). */
+  /**
+   * Final do rankeado: mesma tela normal, mas R/Enter emendam a próxima
+   * partida (rush de elo) e só Esc/Q/N volta ao menu. Sem tecla em 10s,
+   * avança sozinho para a próxima.
+   */
+  public EndScreen.Result endRankedGame(String extra) throws IOException, InterruptedException {
+    gb.getClock().stop();
+    try {
+      render();
+    } catch (Exception ignored) {
+    }
+    long matchMs = gb.getClock().matchMillis();
+    String hint = I18n.t("end.rematch.ranked");
+    while (pollInput() != null) {
+    }
+    long end = System.currentTimeMillis() + 10_000L;
+    int lastShown = -1;
+    while (true) {
+      long remain = end - System.currentTimeMillis();
+      if (remain <= 0) return new EndScreen.Result(EndScreen.Choice.REMATCH);
+      int sec = (int) ((remain + 999) / 1000);
+      if (sec != lastShown) {
+        lastShown = sec;
+        EndScreen.draw(screen, txt, gb.getStatus(), winnerLabel(), sessionScore, matchMs,
+            withCountdown(extra, sec), hint);
+      }
+      KeyStroke k = pollInput();
+      if (k != null) {
+        if (k.getKeyType() == KeyType.Escape) return new EndScreen.Result(EndScreen.Choice.QUIT);
+        if (k.getKeyType() == KeyType.Enter) return new EndScreen.Result(EndScreen.Choice.REMATCH);
+        Character c = k.getCharacter();
+        if (c != null) {
+          char u = Character.toUpperCase(c);
+          if (u == 'R') return new EndScreen.Result(EndScreen.Choice.REMATCH);
+          if (u == 'N' || u == 'Q') return new EndScreen.Result(EndScreen.Choice.QUIT);
+        }
+      }
+      Thread.sleep(50);
+    }
+  }
+
+  private static String withCountdown(String extra, int sec) {
+    String cd = I18n.t("ranked.next.in", sec);
+    if (extra == null || extra.isEmpty()) return cd;
+    return extra + "  |  " + cd;
+  }
   public void newRoundAlternateStarter() {
     gb.newRoundAlternateStarter();
     lastDest = null;
     lastDestFree = true;
     transientMsg = null;
+    escPending = false;
+    stashedOnlineMatch = null;
+  }
+
+  // ---------- menu ESC local/rankeado (Sair e salvar / Desistir) ----------
+  public enum EscChoice {
+    RESUME,
+    SAVE_QUIT,
+    RESIGN
+  }
+
+  private String saveMode() {
+    return rankedMode ? "RANKED" : "LOCAL";
+  }
+
+  /**
+   * Menu do ESC (só local/rankeado). Online mantém saída direta.
+   * 1 = Sair e salvar, 2 = Desistir, Esc = voltar ao jogo.
+   */
+  public EscChoice showEscMenu() throws IOException, InterruptedException {
+    int sel = 0;
+    while (true) {
+      waitForEnoughSize();
+      screen.clear();
+      int cols = terminal.getTerminalSize().getColumns();
+      int rows = terminal.getTerminalSize().getRows();
+      String title = I18n.t("esc.title");
+      String o1 = I18n.t("esc.save");
+      String o2 = I18n.t("esc.resign");
+      String back = I18n.t("esc.back");
+      String hint = I18n.t("esc.hint");
+      int w = Math.max(Math.max(title.length(), o1.length()), Math.max(o2.length(), hint.length())) + 8;
+      w = Math.max(w, back.length() + 8);
+      int h = 10;
+      int x0 = Math.max(0, (cols - w) / 2);
+      int y0 = Math.max(0, (rows - h) / 2);
+      txt.setBackgroundColor(TextColor.ANSI.BLACK);
+      txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
+      for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+          txt.putString(x0 + x, y0 + y, " ");
+        }
+      }
+      txt.enableModifiers(SGR.BOLD);
+      txt.putString(x0, y0, "┌" + "─".repeat(w - 2) + "┐");
+      for (int i = 1; i < h - 1; i++) {
+        txt.putString(x0, y0 + i, "│");
+        txt.putString(x0 + w - 1, y0 + i, "│");
+      }
+      txt.putString(x0, y0 + h - 1, "└" + "─".repeat(w - 2) + "┘");
+      txt.putString(x0 + Math.max(0, (w - title.length()) / 2), y0, " " + title + " ");
+      txt.clearModifiers();
+      String[] opts = {o1, o2};
+      for (int i = 0; i < opts.length; i++) {
+        txt.setBackgroundColor(TextColor.ANSI.BLACK);
+        if (i == sel) {
+          txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
+          txt.enableModifiers(SGR.REVERSE, SGR.BOLD);
+        } else {
+          txt.setForegroundColor(TextColor.ANSI.WHITE);
+        }
+        txt.putString(x0 + 3, y0 + 2 + i, opts[i].length() > w - 6
+            ? opts[i].substring(0, w - 6) : opts[i]);
+        txt.clearModifiers();
+      }
+      txt.setBackgroundColor(TextColor.ANSI.BLACK);
+      txt.setForegroundColor(Theme.DIM_FG);
+      txt.putString(x0 + Math.max(0, (w - back.length()) / 2), y0 + 5, back);
+      txt.putString(x0 + Math.max(0, (w - hint.length()) / 2), y0 + 6, hint);
+      txt.clearModifiers();
+      txt.setBackgroundColor(null);
+      txt.setForegroundColor(null);
+      refresh();
+      KeyStroke k = screen.readInput();
+      if (k == null) continue;
+      if (k.getKeyType() == KeyType.Escape) return EscChoice.RESUME;
+      if (k.getKeyType() == KeyType.ArrowUp || k.getKeyType() == KeyType.ArrowDown) {
+        sel = 1 - sel;
+        continue;
+      }
+      if (k.getKeyType() == KeyType.Enter) {
+        return sel == 0 ? EscChoice.SAVE_QUIT : EscChoice.RESIGN;
+      }
+      Character c = k.getCharacter();
+      if (c != null) {
+        if (c == '1') return EscChoice.SAVE_QUIT;
+        if (c == '2') return EscChoice.RESIGN;
+      }
+    }
+  }
+
+  /**
+   * Trata ESC no meio do jogo local/rankeado.
+   *
+   * @return true se o chamador deve encerrar (SAVE_QUIT ou RESIGN já aplicados),
+   *         false se deve continuar jogando (RESUME).
+   */
+  private boolean handleEscInGame() throws IOException, InterruptedException {
+    if (onlineMode) {
+      gb.setGameStatus(MatchStatus.INTERRUPTED);
+      gb.getClock().stop();
+      return true;
+    }
+    EscChoice choice = showEscMenu();
+    if (choice == EscChoice.RESUME) {
+      render();
+      return false;
+    }
+    if (choice == EscChoice.SAVE_QUIT) {
+      try {
+        com.Campeol.ui.LocalSave.save(saveMode(), gb, sessionScore,
+            lastDest, lastDestFree, rankedHumanPiece);
+      } catch (Exception e) {
+        NetLog.log("esc save", e);
+      }
+      gb.setGameStatus(MatchStatus.INTERRUPTED);
+      gb.getClock().stop();
+      try {
+        toast("save.saved", 1200);
+      } catch (Exception ignored) {
+      }
+      return true;
+    }
+    // RESIGN: quem perde é o humano (rankeado) ou quem tem a vez (local).
+    try {
+      com.Campeol.subgame.Player loser;
+      com.Campeol.subgame.Player win;
+      if (rankedMode && rankedHumanPiece != null) {
+        char hp = rankedHumanPiece;
+        if (gb.getP1() != null && gb.getP1().getPiece() != null
+            && gb.getP1().getPiece().getXorO() == hp) {
+          loser = gb.getP1();
+          win = gb.getP2();
+        } else {
+          loser = gb.getP2();
+          win = gb.getP1();
+        }
+      } else {
+        com.Campeol.subgame.Player cur = gb.getCurrentPlayer();
+        if (cur == gb.getP1()) {
+          loser = gb.getP1();
+          win = gb.getP2();
+        } else {
+          loser = gb.getP2();
+          win = gb.getP1();
+        }
+      }
+      if (win != null) {
+        gb.setWinner(win);
+        gb.setGameStatus(MatchStatus.VICTORY);
+      } else {
+        gb.setGameStatus(MatchStatus.DRAW);
+      }
+      gb.setMatchFinished(true);
+      gb.getClock().stop();
+      com.Campeol.ui.LocalSave.delete(saveMode());
+    } catch (Exception e) {
+      NetLog.log("esc resign", e);
+      gb.setGameStatus(MatchStatus.INTERRUPTED);
+      gb.getClock().stop();
+    }
+    return true;
+  }
+
+  /**
+   * Pergunta Continuar vs Nova quando há save. Retorna true = continuar.
+   * Se o save está corrompido, apaga, avisa e retorna false (nova).
+   */
+  public boolean askContinueSave(String mode) throws IOException, InterruptedException {
+    if (!com.Campeol.ui.LocalSave.exists(mode)) {
+      return false;
+    }
+    waitForEnoughSize();
+    screen.clear();
+    int cols = terminal.getTerminalSize().getColumns();
+    int rows = terminal.getTerminalSize().getRows();
+    String title = I18n.t("save.found");
+    String hint = I18n.t("save.continue");
+    int w = Math.max(title.length(), hint.length()) + 8;
+    int h = 7;
+    int x0 = Math.max(0, (cols - w) / 2);
+    int y0 = Math.max(0, (rows - h) / 2);
+    txt.setBackgroundColor(TextColor.ANSI.BLACK);
+    txt.setForegroundColor(TextColor.ANSI.WHITE_BRIGHT);
+    for (int y = 0; y < h; y++) {
+      for (int x = 0; x < w; x++) {
+        txt.putString(x0 + x, y0 + y, " ");
+      }
+    }
+    txt.enableModifiers(SGR.BOLD);
+    txt.putString(x0, y0, "┌" + "─".repeat(w - 2) + "┐");
+    for (int i = 1; i < h - 1; i++) {
+      txt.putString(x0, y0 + i, "│");
+      txt.putString(x0 + w - 1, y0 + i, "│");
+    }
+    txt.putString(x0, y0 + h - 1, "└" + "─".repeat(w - 2) + "┘");
+    txt.putString(x0 + Math.max(0, (w - title.length()) / 2), y0 + 2, title);
+    txt.clearModifiers();
+    txt.setForegroundColor(Theme.DIM_FG);
+    txt.putString(x0 + Math.max(0, (w - hint.length()) / 2), y0 + 4, hint);
+    txt.setForegroundColor(null);
+    txt.setBackgroundColor(null);
+    refresh();
+    while (true) {
+      KeyStroke k = screen.readInput();
+      if (k == null) continue;
+      if (k.getKeyType() == KeyType.Escape) return false;
+      Character c = k.getCharacter();
+      if (c != null) {
+        char u = Character.toUpperCase(c);
+        if (u == 'S' || u == 'Y') return true;
+        if (u == 'N') return false;
+      }
+      if (k.getKeyType() == KeyType.Enter) return true;
+    }
+  }
+
+  /** Restaura save no board atual. Retorna false se corrompido. */
+  public boolean restoreSave(String mode) {
+    com.Campeol.ui.LocalSave s = com.Campeol.ui.LocalSave.load(mode);
+    if (s == null) {
+      return false;
+    }
+    boolean ok = s.applyTo(gb);
+    if (!ok) {
+      com.Campeol.ui.LocalSave.delete(mode);
+      return false;
+    }
+    try {
+      if (s.getSessionScore() != null) {
+        sessionScore.restoreFrom(s.getSessionScore());
+      }
+    } catch (Exception ignored) {
+    }
+    try {
+      lastDest = s.getLastDest();
+      lastDestFree = s.isLastDestFree();
+    } catch (Exception ignored) {
+    }
+    try {
+      if ("RANKED".equals(mode) && s.getRankedHumanPiece() != null) {
+        rankedHumanPiece = s.getRankedHumanPiece();
+        gb.setNoClockPiece(oppositePiece(rankedHumanPiece));
+      }
+    } catch (Exception ignored) {
+    }
+    transientMsg = null;
+    escPending = false;
+    stashedOnlineMatch = null;
+    resetLeaveReason();
+    return true;
+  }
+
+  private static Character oppositePiece(Character p) {
+    if (p == null) return null;
+    if (p == 'X') return 'O';
+    if (p == 'O') return 'X';
+    return null;
   }
 
   public void close() throws IOException {

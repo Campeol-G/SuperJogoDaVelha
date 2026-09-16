@@ -48,6 +48,10 @@ public final class I18n {
     try {
       return bundle().getString(key);
     } catch (MissingResourceException e) {
+      try {
+        com.Campeol.net.NetLog.log("i18n faltando: " + key);
+      } catch (Exception ignored) {
+      }
       return key;
     }
   }
@@ -57,6 +61,10 @@ public final class I18n {
     try {
       return String.format(pattern, args);
     } catch (Exception e) {
+      try {
+        com.Campeol.net.NetLog.log("i18n format falhou: " + key);
+      } catch (Exception ignored) {
+      }
       return pattern;
     }
   }

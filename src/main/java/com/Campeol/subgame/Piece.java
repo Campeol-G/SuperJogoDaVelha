@@ -5,6 +5,8 @@ import java.util.Objects;
 
 public class Piece implements Serializable {
 
+  private static final long serialVersionUID = 1L;
+
   private Position position;
   private char XorO;
 
@@ -17,11 +19,17 @@ public class Piece implements Serializable {
   }
 
   public Piece(char xorO) {
+    if (xorO != 'X' && xorO != 'O') {
+      throw new IllegalArgumentException("Piece must be X or O");
+    }
     XorO = xorO;
     this.position = null;
   }
 
   public void setChar(char XorO) {
+    if (XorO != 'X' && XorO != 'O') {
+      throw new IllegalArgumentException("Piece must be X or O");
+    }
     this.XorO = XorO;
   }
 
