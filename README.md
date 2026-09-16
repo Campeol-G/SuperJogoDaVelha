@@ -22,15 +22,18 @@ O clássico jogo da velha, mas **nove vezes mais estratégico**. No Super Jogo d
   <br>
   <sup><em>Demonstração do modo Rankeado.</em></sup>
 </div>
+
 - **Modo Online em LAN** — criar/entrar com senha, descoberta automática na rede, nick por jogador, revanche e aviso de saída/queda.
 <div align="center">
   <img src="docs/createGame.gif" alt="Criando o jogo online" width="700">
   <img src="docs/getInTheGame.gif" alt="Entrando no jogo" width="700">
 </div>
+
 - **Menu de pausa (`Esc`)** — no Local e no Rankeado o `Esc` abre `PAUSADO` com `Sair e salvar` ou `Desistir da partida` (no Online o `Esc` continua saindo direto).
 <div align="center">
   <img src="docs/MenuRanked.png" alt="Menu de pausa" width="700">
 </div>
+
 - **Salvar e continuar** — `Sair e salvar` grava em `~/.superjogo/save-local.dat` ou `save-ranked.dat`; ao entrar no modo o jogo pergunta `Continuar` ou `Nova partida`.
 - **Online mais seguro** — validação da jogada recebida (posição, peça e placar recalculados), filtro de desserialização e senha/TLS renovados.
 - **Tradução PT/EN** — escolha de idioma no início, com textos do HUD e telas traduzidos.
